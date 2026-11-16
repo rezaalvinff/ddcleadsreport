@@ -81,9 +81,10 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 
 1. Buat project di <https://supabase.com>.
 2. Jalankan migrasi: buka **SQL Editor**, tempel isi `supabase/migrations/20261116000000_initial_schema.sql`, *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
-3. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
-4. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).
-5. **Project Settings → API**: salin Project URL, anon/publishable key, service_role/secret key.
+3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 31 dealer dan 37 grup WhatsApp DDC. Aman dijalankan ulang. Tiga grup yang lokasinya belum pasti (`DDC DIPO SENEJA`, `DDC KRAKATAU`, `DDC DIPO GATOT SUBROTO`) sengaja dimuat **nonaktif** — perbaiki wilayahnya di Master Cabang lalu aktifkan.
+4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
+5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).
+6. **Project Settings → API**: salin Project URL, anon/publishable key, service_role/secret key.
 
 ### 2. Google Sheets
 
@@ -130,7 +131,7 @@ npm install
 npm run dev
 ```
 
-Buka <http://localhost:3000>, login dengan akun Supabase yang ada di `ALLOWED_EMAILS`, lalu isi **Master Cabang** (dealer & grup) sebelum menambah prospek.
+Buka <http://localhost:3000>, login dengan akun Supabase yang ada di `ALLOWED_EMAILS`, lalu isi **Master Cabang** (dealer & grup) sebelum menambah prospek — atau pakai file seed di langkah 1.
 
 ## Deploy (GitHub + Vercel)
 
@@ -168,7 +169,7 @@ TEST_DATABASE_URL="postgresql://user:pass@localhost:5432/postgres" npm run test:
 Cakupan:
 
 - **Unit** (`tests/unit`): logika tanggal & zona waktu, normalisasi telepon, 9 kasus wajib klasifikasi + kasus ambigu/di luar wilayah/fallback Gemini, layout tab Sheets (ringkasan harian, total, warna, kolom, tabel kosong, urutan), validasi input, pesan & clipboard WhatsApp, tidak ada dependensi/URL WhatsApp tidak resmi, validasi env, semua server action memanggil `requireUser()` lebih dulu, modul rahasia tidak diimpor dari komponen klien, otorisasi cron.
-- **Integrasi** (`tests/integration`, PostgreSQL asli + Google Sheets *test double*): trigger `report_date` & `created_at`, edit/hapus/pindah bulan, idempotensi `submission_id`, nomor duplikat, constraint, RLS & hak akses `anon`/`authenticated`, lock, pembuatan tab otomatis tanpa duplikat, ringkasan harian & total, pengelompokan wilayah, update tanpa duplikasi, hapus + hitung ulang, gagal → retry → sukses, 12 submit paralel, perubahan di tengah pengiriman, serta antrean batch (menumpuk lalu terkirim sekali tekan).
+- **Integrasi** (`tests/integration`, PostgreSQL asli + Google Sheets *test double*): trigger `report_date` & `created_at`, edit/hapus/pindah bulan, idempotensi `submission_id`, nomor duplikat, constraint, RLS & hak akses `anon`/`authenticated`, lock, pembuatan tab otomatis tanpa duplikat, ringkasan harian & total, pengelompokan wilayah, update tanpa duplikasi, hapus + hitung ulang, gagal → retry → sukses, 12 submit paralel, perubahan di tengah pengiriman, serta antrean batch (menumpuk lalu terkirim sekali tekan), dan file seed master cabang (jumlah, tautan dealer–grup, dan kecocokan kota dengan wilayah).
 
 Yang **belum** diuji karena memerlukan kredensial Anda: panggilan nyata ke Google Sheets API, Gemini API, dan Supabase (PostgREST/Auth) yang ter-hosting. Lakukan langkah 6 di bagian Deploy sebagai uji penerimaan.
 
@@ -184,5 +185,6 @@ src/
   lib/sync/              mesin pengiriman (lock, revisi, retry)
   lib/leads/ handover/ master/ whatsapp/   logika bisnis
 supabase/migrations/     skema database
+supabase/seed/           data master cabang & grup WhatsApp (sekali jalan)
 tests/                   unit & integrasi
 ```
