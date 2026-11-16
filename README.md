@@ -97,7 +97,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 3. Gemini (opsional, cadangan klasifikasi)
 
 1. Buat API key di <https://aistudio.google.com/apikey>.
-2. Pilih model yang tersedia dan masuk free tier Anda — cek <https://ai.google.dev/gemini-api/docs/pricing> (daftar model & free tier berubah dari waktu ke waktu; mis. `gemini-2.5-flash-lite`).
+2. Pilih model yang tersedia dan masuk free tier Anda — cek <https://ai.google.dev/gemini-api/docs/pricing> (daftar model & free tier berubah dari waktu ke waktu; mis. `gemini-3.1-flash-lite`).
 3. Isi `GEMINI_API_KEY` dan `GEMINI_MODEL`, lalu buka **Pengaturan → Cek model Gemini** untuk memastikan model tersedia untuk key Anda.
 
 Tanpa Gemini aplikasi tetap berjalan; domisili yang tidak ada di database lokasi wajib dikonfirmasi manual.
