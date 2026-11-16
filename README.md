@@ -81,7 +81,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 
 1. Buat project di <https://supabase.com>.
 2. Jalankan migrasi: buka **SQL Editor**, tempel isi `supabase/migrations/20261116000000_initial_schema.sql`, *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
-3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 31 dealer dan 37 grup WhatsApp DDC. Aman dijalankan ulang. Tiga grup yang lokasinya belum pasti (`DDC DIPO SENEJA`, `DDC KRAKATAU`, `DDC DIPO GATOT SUBROTO`) sengaja dimuat **nonaktif** — perbaiki wilayahnya di Master Cabang lalu aktifkan.
+3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).
 6. **Project Settings → API**: salin Project URL, anon/publishable key, service_role/secret key.

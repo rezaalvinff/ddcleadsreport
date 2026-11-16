@@ -5,9 +5,6 @@
 --
 -- Nama grup ditulis persis seperti di WhatsApp agar mudah dicari.
 -- Link undangan sengaja dikosongkan; isi lewat Master Cabang bila ada.
---
--- Tiga grup ditandai NONAKTIF karena lokasinya belum pasti (lihat bagian C).
--- Aktifkan dan perbaiki wilayahnya lewat halaman Master Cabang.
 
 -- A. Dealer ------------------------------------------------------------------
 insert into public.dealers (dealer_name, city, province, reporting_region) values
@@ -16,6 +13,7 @@ insert into public.dealers (dealer_name, city, province, reporting_region) value
   ('DIPO GOLF ISLAND',       'Jakarta Utara',       'DKI Jakarta',        'JABODETABEK'),
   ('DIPO PLUIT',             'Jakarta Utara',       'DKI Jakarta',        'JABODETABEK'),
   ('DIPO PONDOK INDAH',      'Jakarta Selatan',     'DKI Jakarta',        'JABODETABEK'),
+  ('DIPO GATOT SUBROTO',     'Jakarta',             'DKI Jakarta',        'JABODETABEK'),
 
   ('DIPO RANCAEKEK',         'Kabupaten Bandung',   'Jawa Barat',         'JAWA BARAT'),
   ('DIPO TASIKMALAYA',       'Tasikmalaya',         'Jawa Barat',         'JAWA BARAT'),
@@ -26,6 +24,7 @@ insert into public.dealers (dealer_name, city, province, reporting_region) value
   ('DIPO BALARAJA',          'Kabupaten Tangerang', 'Banten',             'BANTEN'),
   ('DIPO RANGKASBITUNG',     'Lebak',               'Banten',             'BANTEN'),
   ('DIPO LINGKAR SELATAN',   'Cilegon',             'Banten',             'BANTEN'),
+  ('DIPO SENEJA',            'Cilegon',             'Banten',             'BANTEN'),
 
   ('DIPO SIDOARJO',          'Sidoarjo',            'Jawa Timur',         'JAWA TIMUR'),
   ('DIPO JEMBER',            'Jember',              'Jawa Timur',         'JAWA TIMUR'),
@@ -35,6 +34,7 @@ insert into public.dealers (dealer_name, city, province, reporting_region) value
   ('DIPO SM RAJA MEDAN',     'Medan',               'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
   ('DIPO MEDAN RINGROAD',    'Medan',               'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
   ('DIPO BINJAI',            'Binjai',              'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
+  ('DIPO KRAKATAU MEDAN',    'Medan',               'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
   ('DIPO PEMATANGSIANTAR',   'Pematangsiantar',     'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
   ('DIPO PADANGSIDIMPUAN',   'Padangsidimpuan',     'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
   ('DIPO RANTAUPRAPAT',      'Labuhanbatu',         'Sumatera Utara',     'SUMATERA & KALIMANTAN'),
@@ -60,6 +60,7 @@ from (values
   ('DDC DIPO GOLF ISLAND NEW',           'DIPO GOLF ISLAND',     'JABODETABEK',           true),
   ('DDC DIPO PLUIT',                     'DIPO PLUIT',           'JABODETABEK',           true),
   ('DDC DIPO PONDOK INDAH',              'DIPO PONDOK INDAH',    'JABODETABEK',           true),
+  ('DDC DIPO GATOT SUBROTO',             'DIPO GATOT SUBROTO',   'JABODETABEK',           true),
 
   -- JAWA BARAT
   ('DDC DIPO RANCAEKEK',                 'DIPO RANCAEKEK',       'JAWA BARAT',            true),
@@ -72,6 +73,7 @@ from (values
   ('DDC Dipo Balaraja',                  'DIPO BALARAJA',        'BANTEN',                true),
   ('DDC DIPO RANGKAS',                   'DIPO RANGKASBITUNG',   'BANTEN',                true),
   ('DDC DIPO LINGKAR SELATAN (CILEGON)', 'DIPO LINGKAR SELATAN', 'BANTEN',                true),
+  ('DDC DIPO SENEJA',                    'DIPO SENEJA',          'BANTEN',                true),
   ('DDC DIPO SERANG GROUP',              null,                   'BANTEN',                true),
   ('DDC BANTEN AREA',                    null,                   'BANTEN',                true),
 
@@ -85,6 +87,7 @@ from (values
   ('DDC DIPO SM RAJA MEDAN',             'DIPO SM RAJA MEDAN',   'SUMATERA & KALIMANTAN', true),
   ('DDC MEDAN RINGROAD',                 'DIPO MEDAN RINGROAD',  'SUMATERA & KALIMANTAN', true),
   ('DDC DIPO BINJAI',                    'DIPO BINJAI',          'SUMATERA & KALIMANTAN', true),
+  ('DDC KRAKATAU',                       'DIPO KRAKATAU MEDAN',  'SUMATERA & KALIMANTAN', true),
   ('DDC PEMATANG SIANTAR (SUMUT)',       'DIPO PEMATANGSIANTAR', 'SUMATERA & KALIMANTAN', true),
   ('DDC PADANGSIDIMPUAN',                'DIPO PADANGSIDIMPUAN', 'SUMATERA & KALIMANTAN', true),
   ('DDC RANTAUPRAPAT LABUHANBATU',       'DIPO RANTAUPRAPAT',    'SUMATERA & KALIMANTAN', true),
@@ -96,15 +99,8 @@ from (values
   ('DDC Dipo Bengkulu',                  'DIPO BENGKULU',        'SUMATERA & KALIMANTAN', true),
   ('DDC Lampung',                        'DIPO LAMPUNG',         'SUMATERA & KALIMANTAN', true),
   ('DDC BALIKPAPAN',                     'DIPO BALIKPAPAN',      'SUMATERA & KALIMANTAN', true),
-  ('DDC BANDA ACEH & MEULABOH',          null,                   'SUMATERA & KALIMANTAN', true),
+  ('DDC BANDA ACEH & MEULABOH',          null,                   'SUMATERA & KALIMANTAN', true)
 
-  -- C. PERLU DIPERIKSA — wilayah masih tebakan, karena itu dinonaktifkan.
-  -- 'Seneja' dan 'Krakatau' ada di Cilegon (Banten), tetapi 'Krakatau' dan
-  -- 'Gatot Subroto' juga nama jalan besar di Medan dan Jakarta.
-  -- Buka Master Cabang: perbaiki wilayah + dealer, lalu Aktifkan.
-  ('DDC DIPO SENEJA',                    null,                   'BANTEN',                false),
-  ('DDC KRAKATAU',                       null,                   'BANTEN',                false),
-  ('DDC DIPO GATOT SUBROTO',             null,                   'JABODETABEK',           false)
 ) as v(group_name, dealer_name, reporting_region, is_active)
 left join public.dealers d on lower(d.dealer_name) = lower(v.dealer_name)
 on conflict do nothing;
