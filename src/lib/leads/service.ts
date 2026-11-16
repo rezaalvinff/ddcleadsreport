@@ -333,3 +333,10 @@ export async function deleteLead(db: Db, id: string): Promise<{ monthKey: string
   if (error) throw dbError("Gagal menghapus prospek", error);
   return data ? { monthKey: monthKeyOf(data.report_date) } : null;
 }
+
+/** Most recently submitted leads (by created_at, not report date). */
+export async function listRecentLeads(db: Db, limit: number): Promise<LeadRecord[]> {
+  const { data, error } = await db.from("leads").select(LEAD_SELECT).order("created_at", { ascending: false }).limit(limit);
+  if (error) throw dbError("Gagal membaca prospek terbaru", error);
+  return (data as unknown as LeadRow[]).map(toRecord);
+}

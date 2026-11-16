@@ -5,8 +5,8 @@ import { requireEnv } from "../env";
 
 /** Cookie-based client used only for Supabase Auth (sign-in, session). */
 export async function createAuthClient() {
-  const env = requireEnv("supabase");
   const cookieStore = await cookies();
+  const env = requireEnv("supabase");
   return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     cookies: {
       getAll: () => cookieStore.getAll(),

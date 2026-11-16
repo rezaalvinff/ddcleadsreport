@@ -1,7 +1,8 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { allowedEmails } from "./env";
+import { cookies } from "next/headers";
+import { allowedEmails, readEnv } from "./env";
 import { createAuthClient } from "./supabase/server";
 
 export interface AppUser {
@@ -11,6 +12,8 @@ export interface AppUser {
 
 /** Signed-in user verified with Supabase Auth and the ALLOWED_EMAILS allowlist. */
 export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
+  await cookies(); // per-request: never prerendered
+  if (!readEnv("supabase").ok) return null;
   const supabase = await createAuthClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user?.email) return null;

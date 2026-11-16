@@ -203,3 +203,24 @@ describe("concurrency", () => {
     expect(sheets.batchCalls).toBe(0);
   });
 });
+
+describe("manual forced resync", () => {
+  it("rewrites an up-to-date tab (e.g. after manual edits in the sheet)", async () => {
+    await insertLead(db.pool, dealerId, { name: "Ani", leadDate: "2026-11-05" });
+    await syncMonth(deps, "2026-11");
+    const tab = sheets.tab("November 2026")!;
+    sheets.grids.set(tab.sheetId, [["dirty"]]);
+    expect(await syncMonth(deps, "2026-11", { force: true })).toMatchObject({ status: "success" });
+    expect(sheets.regionRows("November 2026", "JAWA BARAT").map((r) => r[1])).toEqual(["Ani"]);
+  });
+
+  it("creates an empty but fully formatted tab for a month without prospects", async () => {
+    expect(await syncMonth(deps, "2026-12", { force: true })).toMatchObject({ status: "success" });
+    const grid = sheets.grid("December 2026");
+    expect(grid[2]!.slice(0, 2)).toEqual([1, "Selasa, 1 Desember 2026"]);
+    expect(grid[33]![0]).toBe("TOTAL");
+    for (const region of ["JABODETABEK", "JAWA BARAT", "BANTEN", "JAWA TIMUR", "SUMATERA & KALIMANTAN"]) {
+      expect(sheets.regionRows("December 2026", region)).toEqual([]);
+    }
+  });
+});

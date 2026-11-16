@@ -1,5 +1,5 @@
 import type { sheets_v4 } from "@googleapis/sheets";
-import { LEAD_SOURCES, REPORTING_REGIONS, type LeadSource, type ReportingRegion } from "../constants";
+import { REPORTING_REGIONS, type LeadSource, type ReportingRegion } from "../constants";
 import { datesOfMonth, formatDayDateId, monthKeyOf, toSheetsSerialDate, type IsoDate } from "../dates";
 
 /**

@@ -76,7 +76,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function syncMonth(deps: SyncDeps, monthKey: string): Promise<MonthSyncOutcome> {
+/**
+ * Brings the month tab up to date. `force` rewrites it once even when the
+ * database says it is current (manual resync after hand edits in the sheet).
+ */
+export async function syncMonth(deps: SyncDeps, monthKey: string, opts: { force?: boolean } = {}): Promise<MonthSyncOutcome> {
   const { store } = deps;
   const token = randomUUID();
   if (!(await acquireLock(store, monthKey, token, deps.lockWaitMs ?? 20_000))) {
@@ -92,7 +96,8 @@ export async function syncMonth(deps: SyncDeps, monthKey: string): Promise<Month
       }
       const month = await store.getMonthState(monthKey);
       const open = await store.getOpenSyncRows(monthKey);
-      if (month.revision <= month.syncedRevision && open.length === 0) {
+      const upToDate = month.revision <= month.syncedRevision && open.length === 0;
+      if (upToDate && !(opts.force && i === 0)) {
         return { monthKey, status: "success", sheetId: sheetId ?? month.sheetId };
       }
 
