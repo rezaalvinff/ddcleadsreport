@@ -41,6 +41,8 @@ Urutan klasifikasi:
 
 Server memvalidasi ulang klasifikasi saat menyimpan (tanpa memanggil Gemini), sehingga status klasifikasi tidak bisa dipalsukan dari browser.
 
+**Dealer otomatis.** Setelah domisili dikenali, kolom Dealer terisi sendiri dan alasannya ditulis di bawah kolom. Tidak ada koordinat dealer, jadi "terdekat" dijawab dari data yang memang ada, berurutan: (1) dealer yang biasa menerima prospek dari domisili itu — ini keputusan rute Anda sendiri, jadi akurasinya naik seiring pemakaian; (2) dealer yang satu kota dengan domisili; (3) satu provinsi; (4) satu wilayah pelaporan. Bila beberapa dealer setara, dipilih yang paling sering dipakai. Pilihan ini selalu bisa diganti manual, dan bila tidak ada yang cocok kolomnya dibiarkan kosong.
+
 **Duplikat.** Setiap form punya `submission_id` unik (idempoten: klik ganda/kirim ulang tidak membuat dua prospek). Nomor telepon yang sudah ada memunculkan peringatan; Anda bisa memilih *Tetap simpan*.
 
 **WhatsApp.** Pesan memuat Source, Nama, Nomer WA, Tipe unit dan Domisili. Isian **Catatan Customer** (opsional) mengawali kalimat penutup, mis. *"Cust terakhir minta info angsuran untuk DP 50 juta, Mohon untuk segera di follow up ya, terimakasih"*; tanpa catatan, kalimat penutup berdiri sendiri. Catatan ini hanya muncul di pesan WhatsApp, tidak di spreadsheet (layout bulanan tidak berubah). Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.

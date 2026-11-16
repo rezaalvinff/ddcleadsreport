@@ -55,3 +55,25 @@ export function masterWriteError(error: { code?: string; message: string }, enti
   if (error.code === "23514") return `Data ${entity.toLowerCase()} tidak valid.`;
   return `Gagal menyimpan ${entity.toLowerCase()}: ${error.message}`;
 }
+
+/** Counts of prospects per dealer: for this exact location, and overall. */
+export async function dealerRouting(
+  db: Db,
+  place: { city: string | null },
+  domicile: string,
+): Promise<{ historyHere: Map<string, number>; loadOverall: Map<string, number> }> {
+  const here = place.city
+    ? db.from("leads").select("dealer_id").eq("city", place.city)
+    : db.from("leads").select("dealer_id").ilike("domicile", domicile.trim());
+
+  const [hereRows, allRows] = await Promise.all([here.limit(500), db.from("leads").select("dealer_id").limit(5000)]);
+  if (hereRows.error) throw dbError("Gagal membaca riwayat dealer", hereRows.error);
+  if (allRows.error) throw dbError("Gagal membaca riwayat dealer", allRows.error);
+
+  const tally = (rows: { dealer_id: string }[]) => {
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.dealer_id, (counts.get(row.dealer_id) ?? 0) + 1);
+    return counts;
+  };
+  return { historyHere: tally(hereRows.data), loadOverall: tally(allRows.data) };
+}

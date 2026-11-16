@@ -19,7 +19,7 @@ import type { DuplicateMatch } from "@/lib/leads/service";
 import { recommendGroups, type Dealer, type WhatsappGroup } from "@/lib/master/types";
 import { normalizePhone } from "@/lib/phone";
 import { buildHandoverMessage } from "@/lib/whatsapp/message";
-import { checkPhoneAction, classifyDomicileAction, saveLeadAction, type SaveLeadResponse } from "./actions";
+import { checkPhoneAction, classifyDomicileAction, saveLeadAction, type DomicileLookup, type SaveLeadResponse } from "./actions";
 
 export interface LeadFormValues {
   name: string;
@@ -52,7 +52,7 @@ const EMPTY: LeadFormValues = {
 type ClassifyState =
   | { state: "idle" }
   | { state: "loading"; text: string }
-  | { state: "done"; text: string; result: Classification }
+  | { state: "done"; text: string; result: DomicileLookup }
   | { state: "error"; text: string; message: string };
 
 type Intent = "save" | "handover";
@@ -85,6 +85,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [classify, setClassify] = useState<ClassifyState>({ state: "idle" });
   const [regionTouched, setRegionTouched] = useState(isEdit);
+  const [dealerTouched, setDealerTouched] = useState(isEdit);
   const [groupsTouched, setGroupsTouched] = useState(isEdit);
   const [showAllGroups, setShowAllGroups] = useState(false);
   const [phoneMatches, setPhoneMatches] = useState<DuplicateMatch[]>([]);
@@ -110,7 +111,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
       setClassify({ state: "loading", text: domicile });
       try {
         const res = await classifyDomicileAction(domicile);
-        if (res.status === "error") setClassify({ state: "error", text: domicile, message: res.message });
+        if ("status" in res) setClassify({ state: "error", text: domicile, message: res.message });
         else setClassify({ state: "done", text: domicile, result: res });
       } catch {
         setClassify({ state: "error", text: domicile, message: "Klasifikasi gagal. Pilih wilayah secara manual." });
@@ -121,7 +122,8 @@ export function LeadForm({ dealers, groups, lead }: Props) {
 
   const settled = (classify.state === "done" || classify.state === "error") && classify.text === domicile;
   const classifying = domicile.length >= 2 && !domicileUnchanged && !settled;
-  const classification = classify.state === "done" && classify.text === domicile ? classify.result : null;
+  const lookup = classify.state === "done" && classify.text === domicile ? classify.result : null;
+  const classification = lookup?.classification ?? null;
   const panelState: ClassifyState = domicile.length < 2 ? { state: "idle" } : classify;
 
   // The region follows the classification until the user picks one manually.
@@ -133,11 +135,15 @@ export function LeadForm({ dealers, groups, lead }: Props) {
         ? classification.region
         : "";
 
+  // The dealer follows the domicile's suggestion until the user picks one.
+  const suggestion = lookup?.dealer ?? null;
+  const effectiveDealerId = dealerTouched ? values.dealerId : (suggestion?.dealerId ?? values.dealerId);
+
   // --- Group recommendations ----------------------------------------------
   const region = (effectiveRegion || null) as ReportingRegion | null;
   const { dealerGroups, regionGroups } = useMemo(
-    () => recommendGroups(groups, values.dealerId || null, region),
-    [groups, values.dealerId, region],
+    () => recommendGroups(groups, effectiveDealerId || null, region),
+    [groups, effectiveDealerId, region],
   );
   // Groups of the selected dealer are preselected until the user changes the selection.
   const selectedGroupIds = groupsTouched ? values.groupIds : dealerGroups.map((g) => g.id);
@@ -169,7 +175,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   };
 
   // --- Derived preview ------------------------------------------------------
-  const dealer = dealers.find((d) => d.id === values.dealerId);
+  const dealer = dealers.find((d) => d.id === effectiveDealerId);
   const unitLabel = values.unit === UNIT_OTHER ? values.unitOther.trim() : values.unit;
   const reportDate = values.leadDate || (lead ? jakartaDate(new Date(lead.createdAt)) : today);
   const reportTab = /^\d{4}-\d{2}-\d{2}$/.test(reportDate) ? sheetTitleForMonth(monthKeyOf(reportDate)) : "-";
@@ -198,7 +204,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
     startTransition(async () => {
       try {
         const res = await saveLeadAction(
-          { ...values, reportingRegion: effectiveRegion, groupIds: selectedGroupIds, submissionId, confirmDuplicate },
+          { ...values, dealerId: effectiveDealerId, reportingRegion: effectiveRegion, groupIds: selectedGroupIds, submissionId, confirmDuplicate },
           lead?.id,
         );
         if (res.status === "invalid") {
@@ -230,6 +236,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
     setErrors({});
     setClassify({ state: "idle" });
     setRegionTouched(false);
+    setDealerTouched(false);
     setGroupsTouched(false);
     setPhoneMatches([]);
     setDuplicateConfirm(null);
@@ -363,18 +370,34 @@ export function LeadForm({ dealers, groups, lead }: Props) {
                 .
               </p>
             ) : (
-              <select className={`input ${errors.dealerId ? "input-error" : ""}`} value={values.dealerId} onChange={(e) => set("dealerId", e.target.value)}>
-                <option value="">— Pilih dealer —</option>
-                {dealers
-                  .filter((d) => d.is_active || d.id === values.dealerId)
-                  .map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.dealer_name} ({d.reporting_region})
-                    </option>
-                  ))}
-              </select>
+              <>
+                <select
+                  className={`input ${errors.dealerId ? "input-error" : ""}`}
+                  value={effectiveDealerId}
+                  onChange={(e) => {
+                    setDealerTouched(true);
+                    set("dealerId", e.target.value);
+                  }}
+                >
+                  <option value="">— Pilih dealer —</option>
+                  {dealers
+                    .filter((d) => d.is_active || d.id === effectiveDealerId)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.dealer_name} ({d.reporting_region})
+                      </option>
+                    ))}
+                </select>
+                {!dealerTouched && suggestion && suggestion.dealerId === effectiveDealerId && (
+                  <p className="mt-1 text-xs text-brand-700">Dipilih otomatis. {suggestion.reason}</p>
+                )}
+                {dealerTouched && suggestion && suggestion.dealerId !== effectiveDealerId && (
+                  <p className="mt-1 text-xs text-neutral-500">Saran dari domisili: {suggestion.dealerName}.</p>
+                )}
+              </>
             )}
           </Field>
+
           <Field label="Source" required error={errors.source}>
             <div className="flex gap-2">
               {LEAD_SOURCES.map((s) => (

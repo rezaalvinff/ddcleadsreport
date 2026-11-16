@@ -11,19 +11,27 @@ import { classifyDomicile, type Classification } from "@/lib/location/classify";
 import { resolveLocationWithGemini } from "@/lib/location/gemini";
 import { findLearnedMapping, saveLearnedMapping } from "@/lib/location/learned";
 import { fieldErrors, leadInputSchema, type FieldErrors } from "@/lib/leads/schema";
+import { dealerRouting, listDealers } from "@/lib/master/service";
+import { suggestDealer, type DealerSuggestion } from "@/lib/master/suggest";
 import { createLead, deleteLead, findPhoneDuplicates, getLead, updateLead, type DuplicateMatch } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/phone";
 import { getPendingSummary, type PendingSummary } from "@/lib/reports";
 import { appSyncDeps } from "@/lib/sync/app";
 import { syncMonths } from "@/lib/sync/service";
 
-export async function classifyDomicileAction(domicile: string): Promise<Classification | { status: "error"; message: string }> {
+export interface DomicileLookup {
+  classification: Classification;
+  /** Dealer the location points at; null when nothing matches. */
+  dealer: DealerSuggestion | null;
+}
+
+export async function classifyDomicileAction(domicile: string): Promise<DomicileLookup | { status: "error"; message: string }> {
   await requireUser();
   try {
     const text = z.string().trim().max(120).parse(domicile);
     const db = getAdminDb();
     const gemini = readEnv("gemini");
-    return await classifyDomicile(text, {
+    const classification = await classifyDomicile(text, {
       findLearned: (name) => findLearnedMapping(db, name),
       saveLearned: (mapping) => saveLearnedMapping(db, mapping),
       // Only the domicile text is sent to Gemini.
@@ -31,6 +39,20 @@ export async function classifyDomicileAction(domicile: string): Promise<Classifi
         ? (value) => resolveLocationWithGemini(value, { apiKey: gemini.value.GEMINI_API_KEY, model: gemini.value.GEMINI_MODEL })
         : undefined,
     });
+
+    // The suggestion follows whatever the classifier worked out, including a
+    // place it found but could not assign to a region on its own.
+    const place =
+      classification.status === "resolved"
+        ? { city: classification.city, province: classification.province, region: classification.region }
+        : (classification.suggestion ?? classification.candidates[0] ?? null);
+    if (!place) return { classification, dealer: null };
+
+    const [dealers, routing] = await Promise.all([
+      listDealers(db, { activeOnly: true }),
+      dealerRouting(db, { city: place.city }, text),
+    ]);
+    return { classification, dealer: suggestDealer({ place, dealers, ...routing }) };
   } catch (error) {
     return { status: "error", message: actionErrorMessage("Klasifikasi domisili", error) };
   }
