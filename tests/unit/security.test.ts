@@ -87,6 +87,25 @@ describe("secrets stay on the server", () => {
   });
 });
 
+describe("proxy matcher", () => {
+  // Reads the shipped string so the test fails if the matcher is narrowed again.
+  const source = read(path.join(root, "src/proxy.ts"));
+  const raw = /matcher: \["([^"]+)"\]/.exec(source)?.[1];
+  const matcher = new RegExp(`^${raw?.replace(/\\\\/g, "\\")}$`);
+
+  it("guards every application page", () => {
+    for (const p of ["/", "/prospek", "/prospek/tambah", "/laporan", "/cabang", "/pengaturan", "/handover/abc"]) {
+      expect(matcher.test(p), p).toBe(true);
+    }
+  });
+
+  it("lets branding assets and build output through, so they load on the sign-in page", () => {
+    for (const p of ["/logo.png", "/icon.png", "/favicon.ico", "/_next/static/chunk.js", "/_next/image", "/api/cron/sync"]) {
+      expect(matcher.test(p), p).toBe(false);
+    }
+  });
+});
+
 describe("cron endpoint authorisation", () => {
   const secret = "s3cret-value-1234567890";
   it("accepts only the exact bearer secret", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { UNIT_OPTIONS } from "@/lib/constants";
 import { fieldErrors, leadInputSchema } from "@/lib/leads/schema";
 
 const valid = {
@@ -15,6 +16,27 @@ const valid = {
   reportingRegion: "SUMATERA & KALIMANTAN",
   groupIds: [],
 };
+
+describe("unit options", () => {
+  it("offers the units the branches actually sell, in order", () => {
+    expect([...UNIT_OPTIONS]).toEqual([
+      "Xpander",
+      "Xforce ICE",
+      "Xforce HEV",
+      "Destinator",
+      "Pajero Sport",
+      "Triton",
+      "L300",
+      "Fuso Canter",
+    ]);
+  });
+
+  it("accepts each of them on the form", () => {
+    for (const unit of UNIT_OPTIONS) {
+      expect(leadInputSchema.safeParse({ ...valid, unit }).success, unit).toBe(true);
+    }
+  });
+});
 
 describe("lead input validation", () => {
   it("normalises valid input", () => {

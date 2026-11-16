@@ -15,7 +15,16 @@ export function isReportingRegion(value: unknown): value is ReportingRegion {
 export const LEAD_SOURCES = ["META", "GOOGLE", "TIKTOK"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
-export const UNIT_OPTIONS = ["Xpander", "Xforce", "Destinator", "Pajero Sport", "L300", "Triton"] as const;
+export const UNIT_OPTIONS = [
+  "Xpander",
+  "Xforce ICE",
+  "Xforce HEV",
+  "Destinator",
+  "Pajero Sport",
+  "Triton",
+  "L300",
+  "Fuso Canter",
+] as const;
 export const UNIT_OTHER = "Lainnya";
 
 export const CLASSIFICATION_METHODS = ["mapped", "ai", "manual"] as const;

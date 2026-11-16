@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -14,12 +15,10 @@ export default async function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
       <div className="card w-full max-w-sm p-6">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="h-6 w-1.5 rounded-sm bg-brand-600" aria-hidden />
-          <div>
-            <h1 className="text-base font-semibold text-neutral-900">DIPO Lead Handover</h1>
-            <p className="text-xs text-neutral-500">Aplikasi internal Mitsubishi DIPO</p>
-          </div>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Image src="/logo.png" alt="" width={56} height={59} priority className="h-14 w-auto" />
+          <h1 className="mt-3 text-base font-semibold text-neutral-900">DDC Leads Report</h1>
+          <p className="text-xs text-neutral-500">Aplikasi internal Mitsubishi DIPO</p>
         </div>
         {configured ? (
           <LoginForm />
