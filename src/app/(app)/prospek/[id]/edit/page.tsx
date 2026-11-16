@@ -46,6 +46,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
             followUpDate: lead.followUpDate ?? "",
             source: lead.source,
             reportingRegion: lead.reportingRegion,
+            customerNote: lead.customerNote ?? "",
             groupIds: handovers.map((h) => h.groupId),
           },
         }}

@@ -3,17 +3,48 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { buildHandoverMessage, copyHandoverMessage, handoverTarget, isValidGroupInviteLink, WHATSAPP_WEB_URL } from "@/lib/whatsapp/message";
 
-const lead = { name: "Budi Santoso", domicile: "Muara Bungo", unit: "Pajero Sport", source: "TIKTOK" };
-const EXPECTED = `HOT PROSPEK MITSUBISHI DIPO
-Nama: Budi Santoso
-Domisili: Muara Bungo
-Unit: Pajero Sport
-Source: TIKTOK
-Mohon segera ditindaklanjuti oleh PIC cabang terkait. Terima kasih.`;
+const lead = {
+  name: "Budi Santoso",
+  phone: "081234567890",
+  domicile: "Muara Bungo",
+  unit: "Pajero Sport",
+  source: "TIKTOK",
+};
+
+const CLOSING = "Mohon untuk segera di follow up ya, terimakasih\u263A\uFE0F\uD83D\uDE4F\uD83C\uDFFB";
+
+const EXPECTED = `Halo, saya mau info leads baru lagi berikut data customernya :
+
+Source : TIKTOK
+Nama : Budi Santoso
+Nomer WA : 081234567890
+Tipe unit : Pajero Sport
+Domisili : Muara Bungo
+
+${CLOSING}`;
 
 describe("handover message", () => {
-  it("follows the template exactly", () => {
+  it("follows the template exactly when there is no customer note", () => {
     expect(buildHandoverMessage(lead)).toBe(EXPECTED);
+    expect(buildHandoverMessage({ ...lead, customerNote: null })).toBe(EXPECTED);
+    expect(buildHandoverMessage({ ...lead, customerNote: "   " })).toBe(EXPECTED);
+  });
+
+  it("leads the closing sentence with the customer note", () => {
+    const note = "Cust terakhir minta info angsuran untuk DP 50 juta";
+    expect(buildHandoverMessage({ ...lead, customerNote: note })).toBe(
+      EXPECTED.replace(CLOSING, `${note}, ${CLOSING}`),
+    );
+  });
+
+  it("drops punctuation the note ends with, so the comma reads correctly", () => {
+    for (const written of ["Minta brosur.", "Minta brosur,", "Minta brosur ", "Minta brosur;"]) {
+      expect(buildHandoverMessage({ ...lead, customerNote: written })).toContain(`Minta brosur, ${CLOSING}`);
+    }
+  });
+
+  it("includes the prospect phone number so the branch can call them", () => {
+    expect(buildHandoverMessage(lead)).toContain("Nomer WA : 081234567890");
   });
 
   it("puts exactly the message on the clipboard", async () => {

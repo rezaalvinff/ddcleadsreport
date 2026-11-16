@@ -44,6 +44,15 @@ describe("lead input validation", () => {
     expect(leadInputSchema.parse({ ...valid, unit: "Lainnya", unitOther: "Outlander PHEV" }).unit).toBe("Outlander PHEV");
   });
 
+  it("accepts an optional customer note and normalises it", () => {
+    expect(leadInputSchema.parse(valid).customerNote).toBeNull();
+    expect(leadInputSchema.parse({ ...valid, customerNote: "   " }).customerNote).toBeNull();
+    expect(leadInputSchema.parse({ ...valid, customerNote: "  Minta   info  angsuran " }).customerNote).toBe("Minta info angsuran");
+    const tooLong = leadInputSchema.safeParse({ ...valid, customerNote: "x".repeat(501) });
+    expect(tooLong.success).toBe(false);
+    if (!tooLong.success) expect(fieldErrors(tooLong.error).customerNote).toBeTruthy();
+  });
+
   it("deduplicates destination groups", () => {
     const g = "2b0f8c1e-1f4a-4c5d-8e9f-0a1b2c3d4e5f";
     expect(leadInputSchema.parse({ ...valid, groupIds: [g, g] }).groupIds).toEqual([g]);

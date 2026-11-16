@@ -39,6 +39,12 @@ export const leadInputSchema = z
     unitOther: z.string().trim().max(60, "Unit maksimal 60 karakter.").optional(),
     followUpDate: optionalDate("Tanggal follow up"),
     source: z.enum(LEAD_SOURCES, { error: "Pilih source." }),
+    customerNote: z
+      .string()
+      .optional()
+      .transform((v) => (v ?? "").trim().replace(/[ \t]+/g, " "))
+      .pipe(z.string().max(500, "Catatan customer maksimal 500 karakter."))
+      .transform((v) => v || null),
     reportingRegion: z.enum(REPORTING_REGIONS, { error: "Pilih wilayah pelaporan." }),
     groupIds: z.array(z.uuid()).max(20).default([]).transform((ids) => [...new Set(ids)]),
     confirmDuplicate: z.boolean().default(false),

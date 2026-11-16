@@ -59,6 +59,33 @@ describe("lead insertion and report_date", () => {
   });
 });
 
+describe("catatan customer", () => {
+  it("stores the note and keeps it through an edit", async () => {
+    const note = "Cust terakhir minta info angsuran untuk DP 50 juta";
+    const lead = await insertLead(db.pool, dealerId);
+    await db.pool.query("update public.leads set customer_note = $2 where id = $1", [lead.id, note]);
+    const after = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(after.rows[0].customer_note).toBe(note);
+
+    await db.pool.query("update public.leads set name = 'Nama Baru' where id = $1", [lead.id]);
+    const kept = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(kept.rows[0].customer_note).toBe(note);
+  });
+
+  it("defaults to empty and rejects a note that is too long or blank", async () => {
+    const lead = await insertLead(db.pool, dealerId, { phone: "081288887777" });
+    const fresh = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(fresh.rows[0].customer_note).toBeNull();
+
+    await expect(
+      db.pool.query("update public.leads set customer_note = $2 where id = $1", [lead.id, "x".repeat(501)]),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      db.pool.query("update public.leads set customer_note = '   ' where id = $1", [lead.id]),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+});
+
 describe("lead editing", () => {
   it("never overwrites created_at or the submission id", async () => {
     const lead = await insertLead(db.pool, dealerId, { createdAt: "2026-11-16T03:00:00Z" });

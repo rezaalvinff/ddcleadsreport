@@ -100,6 +100,7 @@ export type Database = {
           unit: string;
           follow_up_date: string | null;
           source: string;
+          customer_note: string | null;
         };
         Insert: {
           id?: string;
@@ -118,6 +119,7 @@ export type Database = {
           unit: string;
           follow_up_date?: string | null;
           source: string;
+          customer_note?: string | null;
         };
         Update: Partial<Omit<Database["public"]["Tables"]["leads"]["Insert"], "submission_id">>;
         Relationships: [

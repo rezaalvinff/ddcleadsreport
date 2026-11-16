@@ -43,7 +43,7 @@ Server memvalidasi ulang klasifikasi saat menyimpan (tanpa memanggil Gemini), se
 
 **Duplikat.** Setiap form punya `submission_id` unik (idempoten: klik ganda/kirim ulang tidak membuat dua prospek). Nomor telepon yang sudah ada memunculkan peringatan; Anda bisa memilih *Tetap simpan*.
 
-**WhatsApp.** Pesan mengikuti template yang ditentukan. Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
+**WhatsApp.** Pesan memuat Source, Nama, Nomer WA, Tipe unit dan Domisili. Isian **Catatan Customer** (opsional) mengawali kalimat penutup, mis. *"Cust terakhir minta info angsuran untuk DP 50 juta, Mohon untuk segera di follow up ya, terimakasih"*; tanpa catatan, kalimat penutup berdiri sendiri. Catatan ini hanya muncul di pesan WhatsApp, tidak di spreadsheet (layout bulanan tidak berubah). Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
 
 ## Pengiriman ke Google Sheets
 
@@ -65,7 +65,7 @@ Migrasi: `supabase/migrations/20261116000000_initial_schema.sql`.
 
 | Tabel | Isi |
 | --- | --- |
-| `leads` | Prospek. `report_date` dikelola trigger; `created_at` immutable; `submission_id` unik (idempoten). |
+| `leads` | Prospek. `report_date` dikelola trigger; `created_at` immutable; `submission_id` unik (idempoten); `customer_note` opsional untuk pesan WhatsApp. |
 | `dealers` | Master dealer/cabang (nama unik, kota, provinsi, wilayah, aktif). |
 | `whatsapp_groups` | Grup tujuan (dealer, wilayah, link undangan resmi tervalidasi, aktif). |
 | `region_mappings` | Lokasi yang dipelajari (Gemini/manual) sebagai cache. |
@@ -80,7 +80,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, tempel isi `supabase/migrations/20261116000000_initial_schema.sql`, *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, kemudian `20261116120000_add_customer_note.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).

@@ -32,6 +32,7 @@ export interface LeadFormValues {
   followUpDate: string;
   source: string;
   reportingRegion: string;
+  customerNote: string;
   groupIds: string[];
 }
 
@@ -46,6 +47,7 @@ const EMPTY: LeadFormValues = {
   followUpDate: "",
   source: "",
   reportingRegion: "",
+  customerNote: "",
   groupIds: [],
 };
 
@@ -176,9 +178,11 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   const selectedGroups = groups.filter((g) => selectedGroupIds.includes(g.id));
   const message = buildHandoverMessage({
     name: values.name.trim() || "[NAMA]",
+    phone: normalizePhone(values.phone) ?? (values.phone.trim() || "[NOMER WA]"),
     domicile: values.domicile.trim() || "[DOMISILI]",
     unit: unitLabel || "[UNIT]",
     source: values.source || "[SOURCE]",
+    customerNote: values.customerNote,
   });
   const regionIsManual =
     regionTouched && Boolean(effectiveRegion) && !(classification?.status === "resolved" && classification.region === effectiveRegion);
@@ -405,6 +409,22 @@ export function LeadForm({ dealers, groups, lead }: Props) {
           ) : (
             <div className="hidden sm:block" />
           )}
+
+          <div className="sm:col-span-2">
+            <Field
+              label="Catatan Customer"
+              error={errors.customerNote}
+              hint="Opsional. Ditambahkan di awal kalimat penutup pesan WhatsApp. Contoh: Cust terakhir minta info angsuran untuk DP 50 juta"
+            >
+              <textarea
+                className={`input ${errors.customerNote ? "input-error" : ""}`}
+                rows={2}
+                maxLength={500}
+                value={values.customerNote}
+                onChange={(e) => set("customerNote", e.target.value)}
+              />
+            </Field>
+          </div>
         </section>
 
         <section className="card p-5">
@@ -491,6 +511,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             <PreviewRow label="Tgl laporan" value={/^\d{4}-\d{2}-\d{2}$/.test(reportDate) ? `${formatDateShort(reportDate)}${values.leadDate ? "" : " (otomatis)"}` : ""} />
             <PreviewRow label="Tab Sheets" value={reportTab} />
             <PreviewRow label="Follow up" value={values.followUpDate ? formatDateShort(values.followUpDate) : "—"} />
+            <PreviewRow label="Catatan" value={values.customerNote.trim()} />
             <PreviewRow label="Grup tujuan" value={selectedGroups.map((g) => g.group_name).join(", ") || "—"} />
           </dl>
         </div>
