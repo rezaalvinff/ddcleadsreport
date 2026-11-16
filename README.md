@@ -29,7 +29,7 @@ Next.js 16 (App Router, server actions) · TypeScript · Tailwind CSS 4 · Supab
 
 ## Aturan bisnis penting
 
-**Tanggal laporan.** `report_date = tanggal prospek manual` bila diisi, selain itu `tanggal submit (Asia/Jakarta)`. Nilai ini dihitung oleh trigger database (`leads_before_write`) sehingga konsisten di semua jalur. `created_at` tidak pernah berubah saat edit. Tanggal follow up hanya mengisi kolom FOLLOW UP. Entri terlambat (mis. prospek 31 Oktober yang diinput 16 November) masuk ke tab **October 2026**.
+**Tanggal laporan.** `report_date = tanggal prospek manual` bila diisi, selain itu `tanggal submit (Asia/Jakarta)`. Nilai ini dihitung oleh trigger database (`leads_before_write`) sehingga konsisten di semua jalur. `created_at` tidak pernah berubah saat edit. Tanggal ini juga yang mengisi kolom FOLLOW UP di tabel wilayah; tidak ada isian follow up terpisah. Entri terlambat (mis. prospek 31 Oktober yang diinput 16 November) masuk ke tab **October 2026**.
 
 **Wilayah pelaporan** (5, tidak bisa diubah): JABODETABEK (DKI Jakarta, Bogor, Depok, Bekasi), JAWA BARAT (Jabar lainnya), BANTEN (termasuk Tangerang & Tangerang Selatan), JAWA TIMUR, SUMATERA & KALIMANTAN.
 
@@ -65,7 +65,7 @@ Migrasi: `supabase/migrations/20261116000000_initial_schema.sql`.
 
 | Tabel | Isi |
 | --- | --- |
-| `leads` | Prospek. `report_date` dikelola trigger; `created_at` immutable; `submission_id` unik (idempoten); `customer_note` opsional untuk pesan WhatsApp. |
+| `leads` | Prospek. `report_date` dikelola trigger dan mengisi kolom FOLLOW UP; `created_at` immutable; `submission_id` unik (idempoten); `customer_note` opsional untuk pesan WhatsApp. |
 | `dealers` | Master dealer/cabang (nama unik, kota, provinsi, wilayah, aktif). |
 | `whatsapp_groups` | Grup tujuan (dealer, wilayah, link undangan resmi tervalidasi, aktif). |
 | `region_mappings` | Lokasi yang dipelajari (Gemini/manual) sebagai cache. |
@@ -80,7 +80,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, kemudian `20261116120000_add_customer_note.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, lalu `20261116160000_drop_follow_up_date.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).

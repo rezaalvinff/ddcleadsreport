@@ -16,7 +16,6 @@ export interface SheetLead {
   domicile: string;
   dealerName: string;
   unit: string;
-  followUpDate: IsoDate | null;
   source: LeadSource;
   reportDate: IsoDate;
   createdAt: string;
@@ -178,7 +177,7 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLay
         { value: lead.domicile, style: "cell" },
         { value: lead.dealerName, style: "cell" },
         { value: lead.unit, style: "cell" },
-        { value: lead.followUpDate ? { date: lead.followUpDate } : null, style: "date" },
+        { value: { date: lead.reportDate }, style: "date" },
         { value: lead.source, style: "cellCenter" },
       ]);
     });

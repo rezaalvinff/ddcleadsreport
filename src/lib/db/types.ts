@@ -98,7 +98,6 @@ export type Database = {
           updated_at: string;
           dealer_id: string;
           unit: string;
-          follow_up_date: string | null;
           source: string;
           customer_note: string | null;
         };
@@ -117,7 +116,6 @@ export type Database = {
           report_date?: string;
           dealer_id: string;
           unit: string;
-          follow_up_date?: string | null;
           source: string;
           customer_note?: string | null;
         };

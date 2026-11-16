@@ -43,7 +43,6 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
             dealerId: lead.dealerId,
             unit: knownUnit ? lead.unit : UNIT_OTHER,
             unitOther: knownUnit ? "" : lead.unit,
-            followUpDate: lead.followUpDate ?? "",
             source: lead.source,
             reportingRegion: lead.reportingRegion,
             customerNote: lead.customerNote ?? "",

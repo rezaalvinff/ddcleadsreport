@@ -17,15 +17,14 @@ export interface LeadFields {
   leadDate?: string | null;
   createdAt?: string;
   source?: string;
-  followUp?: string | null;
   unit?: string;
 }
 
 export async function insertLead(pool: pg.Pool, dealerId: string, f: LeadFields = {}): Promise<{ id: string; report_date: string }> {
   const r = await pool.query(
     `insert into public.leads (submission_id, name, phone, domicile, reporting_region, classification_status, lead_date,
-                               dealer_id, unit, follow_up_date, source, created_at)
-     values ($1, $2, $3, $4, $5, 'mapped', $6, $7, $8, $9, $10, coalesce($11::timestamptz, now()))
+                               dealer_id, unit, source, created_at)
+     values ($1, $2, $3, $4, $5, 'mapped', $6, $7, $8, $9, coalesce($10::timestamptz, now()))
      returning id, to_char(report_date, 'YYYY-MM-DD') as report_date`,
     [
       randomUUID(),
@@ -36,7 +35,6 @@ export async function insertLead(pool: pg.Pool, dealerId: string, f: LeadFields 
       f.leadDate ?? null,
       dealerId,
       f.unit ?? "Xpander",
-      f.followUp ?? null,
       f.source ?? "META",
       f.createdAt ?? null,
     ],

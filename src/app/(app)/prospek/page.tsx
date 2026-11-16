@@ -123,14 +123,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <th>Domisili / Wilayah</th>
               <th>Dealer / Unit</th>
               <th>Source</th>
-              <th>Follow up</th>
               <th>Disubmit</th>
               <th>Sheets</th>
               <th className="text-right">Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={9}>Tidak ada prospek yang cocok dengan filter.</EmptyRow>}
+            {rows.length === 0 && <EmptyRow colSpan={8}>Tidak ada prospek yang cocok dengan filter.</EmptyRow>}
             {rows.map((lead) => (
               <tr key={lead.id}>
                 <td className="whitespace-nowrap">{formatDateShort(lead.reportDate)}</td>
@@ -149,7 +148,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                   <span className="block text-xs text-neutral-500">{lead.unit}</span>
                 </td>
                 <td>{lead.source}</td>
-                <td className="whitespace-nowrap">{lead.followUpDate ? formatDateShort(lead.followUpDate) : "—"}</td>
                 <td className="text-xs whitespace-nowrap text-neutral-600">{formatTimestampId(lead.createdAt)}</td>
                 <td>
                   <SyncBadge status={lead.sync?.status} title={lead.sync?.error} />

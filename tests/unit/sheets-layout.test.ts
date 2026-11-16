@@ -10,7 +10,6 @@ const lead = (over: Partial<SheetLead>): SheetLead => ({
   domicile: "Bandung",
   dealerName: "DIPO Bandung",
   unit: "Xpander",
-  followUpDate: null,
   source: "META",
   reportDate: "2026-11-02",
   createdAt: "2026-11-02T03:00:00.000Z",
@@ -25,7 +24,7 @@ describe("daily source summary", () => {
     lead({ source: "GOOGLE", reportDate: "2026-11-01" }),
     lead({ source: "META", reportDate: "2026-11-01" }),
     lead({ source: "META", reportDate: "2026-11-30" }),
-    lead({ source: "TIKTOK", reportDate: "2026-11-15", followUpDate: "2026-11-03" }),
+    lead({ source: "TIKTOK", reportDate: "2026-11-15" }),
   ]);
 
   it("has the NO / HARI/TANGGAL / SALES (GOOGLE, META, TIKTOK) / TOTAL header with merges", () => {
@@ -68,7 +67,7 @@ describe("regional tables", () => {
   const leads = [
     lead({ name: "Late", region: "JAWA BARAT", reportDate: "2026-11-20", createdAt: "2026-11-20T01:00:00Z" }),
     lead({ name: "Early", region: "JAWA BARAT", reportDate: "2026-11-03", createdAt: "2026-11-21T01:00:00Z" }),
-    lead({ name: "Jkt", region: "JABODETABEK", phone: "0215551234", followUpDate: "2026-11-25", source: "GOOGLE" }),
+    lead({ name: "Jkt", region: "JABODETABEK", phone: "0215551234", reportDate: "2026-11-25", source: "GOOGLE" }),
   ];
   const layout = buildMonthLayout("2026-11", leads);
 
@@ -88,11 +87,12 @@ describe("regional tables", () => {
     expect(rows.map((r) => [r[0]!.value, r[1]!.value])).toEqual([[1, "Early"], [2, "Late"]]);
   });
 
-  it("writes phone as text and follow-up as a date", () => {
+  it("writes phone as text and fills FOLLOW UP with the prospect's own report date", () => {
     const jkt = layout.regions.find((r) => r.region === "JABODETABEK")!;
     const row = layout.rows[jkt.firstDataRow]!;
     expect(row[2]!.value).toBe("0215551234");
     expect(row[6]!.value).toEqual({ date: "2026-11-25" });
+    expect(row[6]!.value).toEqual({ date: leads[2]!.reportDate });
     const write = buildSheetRequests(layout, 1, { rowCount: 100, columnCount: 8 }).find((r) => r.updateCells?.rows)!.updateCells!;
     expect(write.rows![jkt.firstDataRow]!.values![2]!.userEnteredValue).toEqual({ stringValue: "0215551234" });
     expect(write.rows![jkt.firstDataRow]!.values![6]!.userEnteredFormat?.numberFormat).toEqual({ type: "DATE", pattern: "dd/mm/yyyy" });

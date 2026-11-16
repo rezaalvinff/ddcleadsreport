@@ -37,7 +37,6 @@ export const leadInputSchema = z
     dealerId: z.uuid("Pilih dealer."),
     unit: z.enum([...UNIT_OPTIONS, UNIT_OTHER], { error: "Pilih unit." }),
     unitOther: z.string().trim().max(60, "Unit maksimal 60 karakter.").optional(),
-    followUpDate: optionalDate("Tanggal follow up"),
     source: z.enum(LEAD_SOURCES, { error: "Pilih source." }),
     customerNote: z
       .string()

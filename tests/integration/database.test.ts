@@ -37,10 +37,11 @@ describe("lead insertion and report_date", () => {
     expect(await monthRow(db.pool, "2026-11")).toBeUndefined();
   });
 
-  it("ignores the follow-up date for the reporting month", async () => {
-    const lead = await insertLead(db.pool, dealerId, { leadDate: "2026-11-10", followUp: "2026-12-05" });
-    expect(lead.report_date).toBe("2026-11-10");
-    expect((await syncRow(db.pool, lead.id))?.spreadsheet_month).toBe("2026-11");
+  it("has no separate follow-up column any more", async () => {
+    const r = await db.admin.query(
+      "select 1 from information_schema.columns where table_name = 'leads' and column_name = 'follow_up_date'",
+    );
+    expect(r.rows).toEqual([]);
   });
 
   it("creates a pending sync row in the same transaction", async () => {

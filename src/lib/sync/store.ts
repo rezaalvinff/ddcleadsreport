@@ -36,7 +36,6 @@ export function toSheetLead(row: {
   phone: string;
   domicile: string;
   unit: string;
-  follow_up_date: string | null;
   source: string;
   report_date: string;
   created_at: string;
@@ -53,7 +52,6 @@ export function toSheetLead(row: {
     domicile: row.domicile,
     dealerName: row.dealer_name ?? "",
     unit: row.unit,
-    followUpDate: row.follow_up_date,
     source: row.source as LeadSource,
     reportDate: row.report_date,
     createdAt: row.created_at,
@@ -98,7 +96,7 @@ export function createSupabaseSyncStore(db: Db): SyncStore {
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await db
           .from("leads")
-          .select("id, name, phone, domicile, unit, follow_up_date, source, report_date, created_at, reporting_region, dealer:dealers(dealer_name)")
+          .select("id, name, phone, domicile, unit, source, report_date, created_at, reporting_region, dealer:dealers(dealer_name)")
           .gte("report_date", start)
           .lte("report_date", end)
           .order("report_date")

@@ -29,7 +29,6 @@ export interface LeadFormValues {
   dealerId: string;
   unit: string;
   unitOther: string;
-  followUpDate: string;
   source: string;
   reportingRegion: string;
   customerNote: string;
@@ -44,7 +43,6 @@ const EMPTY: LeadFormValues = {
   dealerId: "",
   unit: "",
   unitOther: "",
-  followUpDate: "",
   source: "",
   reportingRegion: "",
   customerNote: "",
@@ -347,11 +345,12 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             />
           </div>
 
-          <Field label="Tanggal Prospek" error={errors.leadDate} hint={`Kosongkan untuk memakai tanggal submit (${formatDateShort(today)}). Menentukan tab laporan.`}>
+          <Field
+            label="Tanggal Prospek"
+            error={errors.leadDate}
+            hint={`Kosongkan untuk memakai tanggal submit (${formatDateShort(today)}). Menentukan tab laporan dan mengisi kolom FOLLOW UP di spreadsheet.`}
+          >
             <input type="date" className="input" value={values.leadDate} max={today} onChange={(e) => set("leadDate", e.target.value)} />
-          </Field>
-          <Field label="Follow Up" error={errors.followUpDate} hint="Hanya untuk kolom FOLLOW UP; tidak memengaruhi bulan laporan.">
-            <input type="date" className="input" value={values.followUpDate} onChange={(e) => set("followUpDate", e.target.value)} />
           </Field>
 
           <Field label="Dealer" required error={errors.dealerId}>
@@ -510,7 +509,6 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             <PreviewRow label="Source" value={values.source} />
             <PreviewRow label="Tgl laporan" value={/^\d{4}-\d{2}-\d{2}$/.test(reportDate) ? `${formatDateShort(reportDate)}${values.leadDate ? "" : " (otomatis)"}` : ""} />
             <PreviewRow label="Tab Sheets" value={reportTab} />
-            <PreviewRow label="Follow up" value={values.followUpDate ? formatDateShort(values.followUpDate) : "—"} />
             <PreviewRow label="Catatan" value={values.customerNote.trim()} />
             <PreviewRow label="Grup tujuan" value={selectedGroups.map((g) => g.group_name).join(", ") || "—"} />
           </dl>

@@ -59,11 +59,11 @@ describe("daily summary and regional tables", () => {
   beforeEach(async () => {
     const jkt = await insertDealer(db.pool, "DIPO Jakarta", "JABODETABEK");
     await insertLead(db.pool, dealerId, { name: "Ani", leadDate: "2026-11-02", source: "GOOGLE", region: "JAWA BARAT", phone: "081200000001" });
-    await insertLead(db.pool, dealerId, { name: "Budi", leadDate: "2026-11-02", source: "META", region: "JAWA BARAT", followUp: "2026-11-20" });
+    await insertLead(db.pool, dealerId, { name: "Budi", leadDate: "2026-11-02", source: "META", region: "JAWA BARAT" });
     await insertLead(db.pool, jkt, { name: "Citra", leadDate: "2026-11-01", source: "TIKTOK", region: "JABODETABEK", domicile: "Bogor" });
     await insertLead(db.pool, jkt, { name: "Dodi", leadDate: "2026-11-30", source: "META", region: "SUMATERA & KALIMANTAN", domicile: "Medan" });
     // Different month and follow-up-only date: must not appear in November.
-    await insertLead(db.pool, dealerId, { name: "Eko", leadDate: "2026-10-31", followUp: "2026-11-02", source: "GOOGLE" });
+    await insertLead(db.pool, dealerId, { name: "Eko", leadDate: "2026-10-31", source: "GOOGLE" });
     await syncDirtyMonths(deps);
   });
 
@@ -91,7 +91,8 @@ describe("daily summary and regional tables", () => {
       [2, "Budi", "081234567890", "META"],
     ]);
     const budi = sheets.regionRows("November 2026", "JAWA BARAT")[1]!;
-    expect(budi[6]).toBe(46346); // 20 Nov 2026 as a Sheets serial date
+    // FOLLOW UP carries the prospect's own report date: 2 Nov 2026.
+    expect(budi[6]).toBe(46328);
     expect(sheets.regionRows("November 2026", "JABODETABEK").map((r) => [r[1], r[3], r[4]])).toEqual([["Citra", "Bogor", "DIPO Jakarta"]]);
     expect(sheets.regionRows("November 2026", "BANTEN")).toEqual([]);
     expect(sheets.regionRows("November 2026", "SUMATERA & KALIMANTAN").map((r) => r[1])).toEqual(["Dodi"]);

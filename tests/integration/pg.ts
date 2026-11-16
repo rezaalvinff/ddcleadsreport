@@ -99,7 +99,7 @@ export function createPgSyncStore(pool: pg.Pool): SyncStore {
     async loadMonthLeads(monthKey) {
       const { start, end } = monthRange(monthKey);
       const r = await pool.query(
-        `select l.id, l.name, l.phone, l.domicile, l.unit, to_char(l.follow_up_date, 'YYYY-MM-DD') as follow_up_date, l.source,
+        `select l.id, l.name, l.phone, l.domicile, l.unit, l.source,
                 to_char(l.report_date, 'YYYY-MM-DD') as report_date, to_char(l.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at,
                 l.reporting_region, d.dealer_name
            from public.leads l join public.dealers d on d.id = l.dealer_id
