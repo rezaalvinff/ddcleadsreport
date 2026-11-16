@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Notice, SyncBadge } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import {
   CLASSIFICATION_LABELS,
   LEAD_SOURCES,
@@ -247,29 +247,23 @@ export function LeadForm({ dealers, groups, lead }: Props) {
         }}
       >
         {result && (
-          <Notice tone={result.sync.status === "success" ? "success" : "warning"}>
+          <Notice tone="success">
             <p className="font-medium">
               {result.replayed ? "Prospek ini sudah tersimpan sebelumnya." : isEdit ? "Perubahan tersimpan di database." : "Prospek tersimpan di database."}
             </p>
-            <p className="mt-1 flex flex-wrap items-center gap-2">
-              Google Sheets: <SyncBadge status={result.sync.status} />
-              {result.sync.status === "success" && result.sync.month && <span>tab {sheetTitleForMonth(result.sync.month)}</span>}
-              {result.sync.status !== "success" && (
-                <span>
-                  {result.sync.error ?? "Belum terkonfirmasi."} Akan dicoba ulang otomatis; bisa juga disinkronkan dari{" "}
-                  <Link className="link" href="/laporan">
-                    Laporan Bulanan
-                  </Link>
-                  .
-                </span>
-              )}
+            <p className="mt-1">
+              Masuk antrean untuk tab <strong>{sheetTitleForMonth(result.month)}</strong>. Total{" "}
+              <strong>{result.pending.total}</strong> prospek menunggu dikirim ke Google Sheets.
             </p>
             {result.warnings.map((w) => (
               <p key={w} className="mt-1">
                 {w}
               </p>
             ))}
-            <p className="mt-2 flex gap-3">
+            <p className="mt-2 flex flex-wrap gap-3">
+              <Link className="link" href="/">
+                Kirim sekarang
+              </Link>
               <Link className="link" href={`/handover/${result.leadId}`}>
                 Siapkan handover
               </Link>

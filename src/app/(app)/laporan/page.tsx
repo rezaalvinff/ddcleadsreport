@@ -45,7 +45,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                 Buka Google Sheets
               </a>
             )}
-            <SyncButton label="Sinkronkan semua yang tertunda" primary />
+            <SyncButton label="Kirim semua yang tertunda" primary />
           </>
         }
       />
@@ -92,7 +92,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
             </p>
             {status?.lastError && !upToDate && <p className="mt-1 text-sm text-red-700">Error terakhir: {status.lastError}</p>}
           </div>
-          <SyncButton monthKey={monthKey} label="Sinkronkan ulang bulan ini" />
+          <SyncButton monthKey={monthKey} label="Kirim ulang bulan ini" />
         </div>
 
         <div className="mt-4 grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
@@ -206,7 +206,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                     <td className="text-xs text-neutral-600">{m.lastSyncedAt ? formatTimestampId(m.lastSyncedAt) : "—"}</td>
                     <td className="max-w-xs text-xs break-words text-red-700">{!ok && m.lastError ? m.lastError : ""}</td>
                     <td className="text-right">
-                      <SyncButton monthKey={m.monthKey} label="Sinkronkan" />
+                      <SyncButton monthKey={m.monthKey} label="Kirim" />
                     </td>
                   </tr>
                 );

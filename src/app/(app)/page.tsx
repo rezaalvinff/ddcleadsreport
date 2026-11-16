@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EmptyRow, Notice, PageHeader, SyncBadge } from "@/components/ui";
+import { EmptyRow, PageHeader, SyncBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { LEAD_SOURCES, REPORTING_REGIONS } from "@/lib/constants";
-import { formatDateShort, formatTimestampId, monthLabelId, todayJakarta } from "@/lib/dates";
+import { formatDateShort, formatTimestampId, monthLabelId, sheetTitleForMonth, todayJakarta } from "@/lib/dates";
 import { getDashboardStats } from "@/lib/dashboard";
 import { getAdminDb } from "@/lib/db/admin";
 import { listRecentLeads } from "@/lib/leads/service";
+import { getPendingSummary } from "@/lib/reports";
 import { monthParam, type SearchParams } from "@/lib/search-params";
+import { SyncButton } from "./laporan/sync-button";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -28,7 +30,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const monthKey = monthParam(await searchParams);
   const [year, month] = monthKey.split("-");
   const db = getAdminDb();
-  const [stats, recent] = await Promise.all([getDashboardStats(db, monthKey), listRecentLeads(db, 10)]);
+  const [stats, recent, pending] = await Promise.all([getDashboardStats(db, monthKey), listRecentLeads(db, 10), getPendingSummary(db)]);
+  const queued = pending.months.length > 0;
   const currentYear = Number(todayJakarta().slice(0, 4));
   const maxRegion = Math.max(1, ...REPORTING_REGIONS.map((r) => stats.byRegion[r]));
 
@@ -70,17 +73,33 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <button className="btn btn-secondary">Tampilkan</button>
       </form>
 
-      {(stats.syncFailed > 0 || stats.syncPending > 0) && (
-        <div className="mb-5">
-          <Notice tone={stats.syncFailed > 0 ? "error" : "warning"}>
-            {stats.syncFailed > 0 && `${stats.syncFailed} prospek gagal disinkronkan ke Google Sheets. `}
-            {stats.syncPending > 0 && `${stats.syncPending} prospek menunggu sinkronisasi. `}
-            <Link className="link" href="/laporan">
-              Buka Laporan Bulanan
-            </Link>
-          </Notice>
+      <section className={`card mb-6 p-4 ${queued ? "border-brand-600 bg-brand-50" : ""}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            {queued ? (
+              <>
+                <p className="font-medium text-neutral-900">
+                  {pending.total > 0
+                    ? `${pending.total} prospek menunggu dikirim ke Google Sheets`
+                    : "Ada perubahan yang menunggu dikirim ke Google Sheets"}
+                </p>
+                <p className="mt-0.5 text-sm text-neutral-600">
+                  Tab: {pending.months.map(sheetTitleForMonth).join(", ")}
+                  {pending.failed > 0 && ` · ${pending.failed} gagal pada percobaan sebelumnya`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-neutral-900">Semua prospek sudah terkirim ke Google Sheets.</p>
+                <p className="mt-0.5 text-sm text-neutral-600">
+                  {pending.lastSentAt ? `Terakhir dikirim ${formatTimestampId(pending.lastSentAt)}.` : "Belum ada pengiriman."}
+                </p>
+              </>
+            )}
+          </div>
+          {queued && <SyncButton label="Kirim sekarang" primary />}
         </div>
-      )}
+      </section>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Total prospek" value={stats.total} sub={monthLabelId(monthKey)} />

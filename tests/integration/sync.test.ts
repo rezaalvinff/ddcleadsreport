@@ -224,3 +224,33 @@ describe("manual forced resync", () => {
     }
   });
 });
+
+describe("batch send", () => {
+  it("accumulates submissions untouched, then sends every queued month in one press", async () => {
+    await insertLead(db.pool, dealerId, { name: "Ani", leadDate: "2026-11-05" });
+    await insertLead(db.pool, dealerId, { name: "Budi", leadDate: "2026-11-06", source: "GOOGLE" });
+    await insertLead(db.pool, dealerId, { name: "Citra", leadDate: "2026-10-20" });
+
+    // Nothing reaches Google Sheets until the send is triggered.
+    expect(sheets.batchCalls).toBe(0);
+    expect(sheets.addTabCalls).toBe(0);
+    expect(await deps.store.findDirtyMonths()).toEqual(["2026-10", "2026-11"]);
+
+    const outcomes = await syncDirtyMonths(deps);
+    expect(outcomes.map((o) => [o.monthKey, o.status])).toEqual([["2026-10", "success"], ["2026-11", "success"]]);
+    expect(sheets.regionRows("November 2026", "JAWA BARAT").map((r) => r[1])).toEqual(["Ani", "Budi"]);
+    expect(sheets.regionRows("October 2026", "JAWA BARAT").map((r) => r[1])).toEqual(["Citra"]);
+    expect(await deps.store.findDirtyMonths()).toEqual([]);
+  });
+
+  it("keeps the queue intact when the send fails, so the next press retries it", async () => {
+    const lead = await insertLead(db.pool, dealerId, { leadDate: "2026-11-05" });
+    sheets.failNext = 1;
+    expect(await syncDirtyMonths(deps)).toMatchObject([{ status: "failed" }]);
+    expect(await deps.store.findDirtyMonths()).toEqual(["2026-11"]);
+    expect(await syncRow(db.pool, lead.id)).toMatchObject({ sync_status: "failed" });
+
+    expect(await syncDirtyMonths(deps)).toMatchObject([{ status: "success" }]);
+    expect(await deps.store.findDirtyMonths()).toEqual([]);
+  });
+});

@@ -61,3 +61,32 @@ export async function listOpenSyncLeads(db: Db, monthKey: string): Promise<OpenS
     retryCount: r.retry_count,
   }));
 }
+
+export interface PendingSummary {
+  /** Leads waiting to be sent. */
+  total: number;
+  failed: number;
+  /** Month tabs that differ from the database, including months whose only change was a deletion. */
+  months: string[];
+  lastSentAt: string | null;
+}
+
+export async function getPendingSummary(db: Db): Promise<PendingSummary> {
+  const [open, months] = await Promise.all([
+    db.from("spreadsheet_sync_logs").select("spreadsheet_month, sync_status").neq("sync_status", "success"),
+    db.from("sheet_months").select("month_key, revision, synced_revision, last_synced_at"),
+  ]);
+  if (open.error) throw dbError("Gagal membaca antrean pengiriman", open.error);
+  if (months.error) throw dbError("Gagal membaca status bulan", months.error);
+
+  const dirty = new Set(months.data.filter((m) => Number(m.revision) > Number(m.synced_revision)).map((m) => m.month_key));
+  for (const row of open.data) dirty.add(row.spreadsheet_month);
+  const sent = months.data.map((m) => m.last_synced_at).filter((t): t is string => t !== null);
+
+  return {
+    total: open.data.length,
+    failed: open.data.filter((r) => r.sync_status === "failed").length,
+    months: [...dirty].sort(),
+    lastSentAt: sent.length > 0 ? sent.sort().at(-1)! : null,
+  };
+}

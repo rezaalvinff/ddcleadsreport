@@ -8,8 +8,6 @@ export interface DashboardStats {
   bySource: Record<LeadSource, number>;
   byRegion: Record<ReportingRegion, number>;
   submittedToday: number;
-  syncFailed: number;
-  syncPending: number;
 }
 
 const PAGE = 1000;
@@ -36,19 +34,11 @@ export async function getDashboardStats(db: Db, monthKey: string, now = new Date
     if (data.length < PAGE) break;
   }
 
-  const [today, failed, pending] = await Promise.all([
-    db.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfJakartaDay(todayJakarta(now)).toISOString()),
-    db.from("spreadsheet_sync_logs").select("id", { count: "exact", head: true }).eq("sync_status", "failed"),
-    db.from("spreadsheet_sync_logs").select("id", { count: "exact", head: true }).eq("sync_status", "pending"),
-  ]);
-  for (const r of [today, failed, pending]) if (r.error) throw dbError("Gagal membaca statistik", r.error);
+  const today = await db
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", startOfJakartaDay(todayJakarta(now)).toISOString());
+  if (today.error) throw dbError("Gagal membaca statistik", today.error);
 
-  return {
-    total,
-    bySource,
-    byRegion,
-    submittedToday: today.count ?? 0,
-    syncFailed: failed.count ?? 0,
-    syncPending: pending.count ?? 0,
-  };
+  return { total, bySource, byRegion, submittedToday: today.count ?? 0 };
 }

@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { z } from "zod";
 import { actionErrorMessage } from "@/lib/action-error";
 import { requireUser } from "@/lib/auth";
-import type { SyncStatus } from "@/lib/constants";
+import { sheetTitleForMonth } from "@/lib/dates";
 import { getAdminDb } from "@/lib/db/admin";
 import { readEnv } from "@/lib/env";
 import { classifyDomicile, type Classification } from "@/lib/location/classify";
@@ -14,8 +13,9 @@ import { findLearnedMapping, saveLearnedMapping } from "@/lib/location/learned";
 import { fieldErrors, leadInputSchema, type FieldErrors } from "@/lib/leads/schema";
 import { createLead, deleteLead, findPhoneDuplicates, getLead, updateLead, type DuplicateMatch } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/phone";
+import { getPendingSummary, type PendingSummary } from "@/lib/reports";
 import { appSyncDeps } from "@/lib/sync/app";
-import { syncDirtyMonths, syncMonths, type MonthSyncOutcome } from "@/lib/sync/service";
+import { syncMonths } from "@/lib/sync/service";
 
 export async function classifyDomicileAction(domicile: string): Promise<Classification | { status: "error"; message: string }> {
   await requireUser();
@@ -44,26 +44,17 @@ export async function checkPhoneAction(phone: string, excludeId?: string): Promi
   return findPhoneDuplicates(getAdminDb(), normalized, id);
 }
 
-export interface LeadSyncSummary {
-  status: SyncStatus | null;
-  error: string | null;
-  month: string | null;
-}
-
 export type SaveLeadResponse =
-  | { status: "saved"; leadId: string; replayed: boolean; sync: LeadSyncSummary; warnings: string[] }
+  | { status: "saved"; leadId: string; replayed: boolean; month: string; pending: PendingSummary; warnings: string[] }
   | { status: "duplicate_phone"; matches: DuplicateMatch[] }
   | { status: "invalid"; errors: FieldErrors }
   | { status: "error"; message: string };
 
-function describeOutcomes(outcomes: MonthSyncOutcome[]): string | null {
-  const problems = outcomes.flatMap((o) =>
-    o.status === "failed" ? [`${o.monthKey}: ${o.error}`] : o.status === "busy" ? [`${o.monthKey}: sedang disinkronkan proses lain`] : [],
-  );
-  return problems.length > 0 ? problems.join("; ") : null;
-}
-
-/** Saves to Supabase first, then synchronises the affected month tab(s). */
+/**
+ * Saves to Supabase and queues the affected month(s) for the next send.
+ * Nothing is written to Google Sheets here: the user sends the whole queue
+ * from the dashboard, and the optional daily cron is only a safety net.
+ */
 export async function saveLeadAction(raw: unknown, leadId?: string): Promise<SaveLeadResponse> {
   await requireUser();
   const parsed = leadInputSchema.safeParse(raw);
@@ -80,27 +71,13 @@ export async function saveLeadAction(raw: unknown, leadId?: string): Promise<Sav
   if (result.kind === "duplicate_phone") return { status: "duplicate_phone", matches: result.matches };
   if (result.kind === "rejected") return { status: "invalid", errors: { [result.field]: result.message } };
 
-  const deps = appSyncDeps();
-  const outcomes = await syncMonths(deps, result.monthKeys);
-  if (outcomes.every((o) => o.status === "success")) {
-    // Google Sheets is reachable: retry anything left from earlier failures.
-    after(async () => {
-      await syncDirtyMonths(appSyncDeps());
-    });
-  }
   revalidatePath("/", "layout");
-
-  const lead = await getLead(db, result.leadId);
-  const problem = describeOutcomes(outcomes);
   return {
     status: "saved",
     leadId: result.leadId,
     replayed: result.replayed,
-    sync: {
-      status: lead?.sync?.status ?? null,
-      error: lead?.sync?.error ?? problem,
-      month: lead?.sync?.month ?? null,
-    },
+    month: result.monthKeys.at(-1)!,
+    pending: await getPendingSummary(db),
     warnings: result.warnings,
   };
 }
@@ -113,12 +90,10 @@ export async function deleteLeadAction(leadId: string): Promise<SimpleResult> {
   try {
     const deleted = await deleteLead(getAdminDb(), leadId);
     if (!deleted) return { ok: false, message: "Prospek tidak ditemukan." };
-    const [outcome] = await syncMonths(appSyncDeps(), [deleted.monthKey]);
     revalidatePath("/", "layout");
-    if (outcome?.status === "success") return { ok: true, message: "Prospek dihapus dan laporan Google Sheets diperbarui." };
     return {
       ok: true,
-      message: `Prospek dihapus dari database. Google Sheets belum diperbarui (${describeOutcomes(outcome ? [outcome] : [])}); akan dicoba ulang.`,
+      message: `Prospek dihapus. Tab ${sheetTitleForMonth(deleted.monthKey)} masuk antrean; tekan "Kirim sekarang" untuk memperbarui Google Sheets.`,
     };
   } catch (error) {
     return { ok: false, message: actionErrorMessage("Menghapus prospek", error) };
@@ -132,10 +107,11 @@ export async function resyncLeadAction(leadId: string): Promise<SimpleResult> {
     const db = getAdminDb();
     const lead = await getLead(db, leadId);
     if (!lead) return { ok: false, message: "Prospek tidak ditemukan." };
-    const outcomes = await syncMonths(appSyncDeps(), [lead.reportDate.slice(0, 7)]);
+    const [outcome] = await syncMonths(appSyncDeps(), [lead.reportDate.slice(0, 7)]);
     revalidatePath("/", "layout");
-    const problem = describeOutcomes(outcomes);
-    return problem ? { ok: false, message: `Sinkronisasi gagal: ${problem}` } : { ok: true, message: "Tersinkron ke Google Sheets." };
+    if (outcome?.status === "success") return { ok: true, message: "Tersinkron ke Google Sheets." };
+    const reason = outcome?.status === "failed" ? outcome.error : "sedang dikirim oleh proses lain, coba lagi sebentar";
+    return { ok: false, message: `Pengiriman gagal: ${reason}` };
   } catch (error) {
     return { ok: false, message: actionErrorMessage("Sinkronisasi ulang", error) };
   }

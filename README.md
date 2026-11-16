@@ -7,6 +7,8 @@ Aplikasi web internal untuk mencatat prospek HOT Mitsubishi DIPO **sekali input*
 3. memperbarui spreadsheet **DIPO LEAD REPORT** di Google Sheets (satu tab per bulan, dibuat otomatis),
 4. menyiapkan pesan **handover WhatsApp** untuk dikirim **manual** oleh Anda.
 
+Prospek yang disubmit **ditumpuk dulu** sepanjang hari. Spreadsheet baru diperbarui ketika Anda menekan **Kirim sekarang** di Dashboard.
+
 Aplikasi ini tidak terhubung ke Qiscus dan tidak memakai otomasi WhatsApp tidak resmi (tanpa Baileys, whatsapp-web.js, WAHA, Evolution API, browser automation, dsb.). Nomor WhatsApp Business Anda tidak pernah disambungkan ke layanan apa pun.
 
 ## Teknologi
@@ -17,12 +19,12 @@ Next.js 16 (App Router, server actions) · TypeScript · Tailwind CSS 4 · Supab
 
 | Halaman | Fungsi |
 | --- | --- |
-| Dashboard | Total prospek per bulan/tahun, per source (META/GOOGLE/TIKTOK), per wilayah, disubmit hari ini, entri terbaru, peringatan sinkronisasi gagal. Semua dari Supabase. |
+| Dashboard | Tombol **Kirim sekarang** + jumlah prospek yang menunggu dikirim. Total prospek per bulan/tahun, per source (META/GOOGLE/TIKTOK), per wilayah, disubmit hari ini, entri terbaru. Semua dari Supabase. |
 | Tambah Prospek | Form input + klasifikasi wilayah otomatis + rekomendasi grup + pratinjau + cek nomor duplikat. Tombol *Submit Prospek*, *Submit & Prepare Handover*, *Reset Form*. |
 | Data Prospek | Cari nama/nomor, filter bulan/tanggal laporan/wilayah/dealer/source/status sinkron, edit, hapus (dengan konfirmasi), sinkron ulang, paginasi. |
 | Riwayat Handover | Status per grup: belum dikirim / pesan disalin / WhatsApp dibuka / ditandai terkirim (konfirmasi manual Anda). |
 | Master Cabang | Kelola dealer dan grup WhatsApp (nama, dealer, wilayah, link undangan resmi, aktif/nonaktif). |
-| Laporan Bulanan | Status sinkron per tab, pratinjau isi tab dari database, sinkron ulang per bulan / semua yang tertunda, tautan ke Google Sheets. |
+| Laporan Bulanan | Status kirim per tab, pratinjau isi tab dari database, kirim ulang per bulan / semua yang tertunda, tautan ke Google Sheets. |
 | Pengaturan | Status konfigurasi, tes koneksi Google Sheets, cek model Gemini, daftar lokasi yang dipelajari (bisa dihapus). |
 
 ## Aturan bisnis penting
@@ -43,15 +45,19 @@ Server memvalidasi ulang klasifikasi saat menyimpan (tanpa memanggil Gemini), se
 
 **WhatsApp.** Pesan mengikuti template yang ditentukan. Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
 
-## Sinkronisasi Google Sheets
+## Pengiriman ke Google Sheets
 
-- Prospek **selalu disimpan ke Supabase dulu**. Baru setelah itu tab bulan terkait disinkronkan.
-- Tab dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan). Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
+Alurnya **batch**: submit menumpuk, satu tombol mengirim semuanya.
+
+- Prospek **selalu disimpan ke Supabase lebih dulu**, lalu masuk antrean. Submit terasa cepat karena tidak menunggu Google.
+- Dashboard menampilkan jumlah yang menunggu beserta tab tujuannya. Tombol **Kirim sekarang** mengirim seluruh antrean, termasuk perubahan dari edit dan penghapusan.
+- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan). Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
 - Tab bulan yang belum ada dibuat otomatis (judul seperti `November 2026`, urut kronologis); tab yang sudah ada tidak pernah diduplikasi.
-- Sinkronisasi per bulan dilindungi **lock di database** + nomor revisi, sehingga submit bersamaan tidak saling menimpa dengan data basi. Status per prospek ada di `spreadsheet_sync_logs` (pending / success / failed, `retry_count`, error).
-- Status *Tersinkron* hanya diberikan setelah Google Sheets mengonfirmasi penulisan.
-- Retry: otomatis setelah submit berikutnya yang sukses, lewat Vercel Cron (`/api/cron/sync`), dan manual dari Data Prospek / Laporan Bulanan.
-- Tab bulanan **dihasilkan oleh aplikasi**. Perubahan manual di dalam tab bulanan akan tertimpa pada sinkronisasi berikutnya; ubah datanya lewat aplikasi. Tab lain (mis. catatan Anda) tidak disentuh.
+- Pengiriman per bulan dilindungi **lock di database** + nomor revisi, sehingga pengiriman bersamaan tidak saling menimpa dengan data basi. Status per prospek ada di `spreadsheet_sync_logs` (pending / success / failed, `retry_count`, error).
+- Status *Tersinkron* hanya diberikan setelah Google Sheets mengonfirmasi penulisan. Bila gagal, antrean tetap utuh dan tinggal ditekan lagi.
+- Pengiriman juga bisa dipicu per bulan atau per prospek dari Laporan Bulanan dan Data Prospek.
+- **Cadangan opsional:** bila `CRON_SECRET` diisi, Vercel Cron mengirim antrean yang tersisa sekali sehari (01:00 WIB) supaya tidak ada yang tertinggal kalau Anda lupa menekan tombol. Tanpa `CRON_SECRET`, pengiriman sepenuhnya manual.
+- Tab bulanan **dihasilkan oleh aplikasi**. Perubahan manual di dalam tab bulanan akan tertimpa pada pengiriman berikutnya; ubah datanya lewat aplikasi. Tab lain (mis. catatan Anda) tidak disentuh.
 
 ## Database (Supabase)
 
@@ -110,9 +116,9 @@ Salin `.env.example` ke `.env.local` (lokal) dan isi juga di Vercel:
 | `GOOGLE_PRIVATE_KEY` | ya* | private key service account — **server only** |
 | `GEMINI_API_KEY` | opsional | **server only** |
 | `GEMINI_MODEL` | opsional | nama model Gemini |
-| `CRON_SECRET` | disarankan | ≥ 16 karakter acak; dipakai Vercel Cron untuk `/api/cron/sync` |
+| `CRON_SECRET` | opsional | ≥ 16 karakter acak. Mengaktifkan pengiriman cadangan harian lewat Vercel Cron. Bila kosong, `/api/cron/sync` mati dan pengiriman sepenuhnya manual. |
 
-\* Tanpa konfigurasi Google, prospek tetap tersimpan dengan status sinkron *Gagal* yang menjelaskan variabel yang kurang, dan otomatis tersinkron setelah konfigurasi lengkap.
+\* Tanpa konfigurasi Google, prospek tetap tersimpan dan menunggu di antrean. Pengiriman akan menjelaskan variabel mana yang kurang, dan berhasil setelah konfigurasi lengkap.
 
 ### 5. Jalankan lokal
 
@@ -132,8 +138,8 @@ Buka <http://localhost:3000>, login dengan akun Supabase yang ada di `ALLOWED_EM
 2. Di <https://vercel.com/new> impor repository (framework terdeteksi: Next.js; build `next build`).
 3. **Settings → Environment Variables**: isi semua variabel di atas untuk *Production* (dan *Preview* bila perlu). Untuk `GOOGLE_PRIVATE_KEY`, tempel nilai `private_key` apa adanya (format `\n` maupun baris baru didukung).
 4. Deploy. Pastikan migrasi Supabase sudah dijalankan.
-5. Cron: `vercel.json` menjadwalkan `/api/cron/sync` setiap hari pukul 18:00 UTC (01:00 WIB) — batas paket Hobby adalah sekali sehari. Di paket Pro jadwal bisa diperketat (mis. `*/15 * * * *`). Vercel otomatis mengirim `Authorization: Bearer $CRON_SECRET`.
-6. Setelah deploy: login → **Pengaturan → Tes koneksi Google Sheets** → **Cek model Gemini** → isi **Master Cabang** → tambah prospek uji dan cek tab bulan di spreadsheet.
+5. Cron (opsional): `vercel.json` menjadwalkan `/api/cron/sync` setiap hari pukul 18:00 UTC (01:00 WIB). Paket Vercel Hobby (gratis) mengizinkan cron sekali sehari, dengan ketepatan satu jam. Vercel otomatis mengirim `Authorization: Bearer $CRON_SECRET`. Lewati langkah ini bila ingin pengiriman sepenuhnya manual.
+6. Setelah deploy: login → **Pengaturan → Tes koneksi Google Sheets** → **Cek model Gemini** → isi **Master Cabang** → tambah prospek uji → tekan **Kirim sekarang** di Dashboard dan cek tab bulan di spreadsheet.
 
 ## Pengujian
 
@@ -162,7 +168,7 @@ TEST_DATABASE_URL="postgresql://user:pass@localhost:5432/postgres" npm run test:
 Cakupan:
 
 - **Unit** (`tests/unit`): logika tanggal & zona waktu, normalisasi telepon, 9 kasus wajib klasifikasi + kasus ambigu/di luar wilayah/fallback Gemini, layout tab Sheets (ringkasan harian, total, warna, kolom, tabel kosong, urutan), validasi input, pesan & clipboard WhatsApp, tidak ada dependensi/URL WhatsApp tidak resmi, validasi env, semua server action memanggil `requireUser()` lebih dulu, modul rahasia tidak diimpor dari komponen klien, otorisasi cron.
-- **Integrasi** (`tests/integration`, PostgreSQL asli + Google Sheets *test double*): trigger `report_date` & `created_at`, edit/hapus/pindah bulan, idempotensi `submission_id`, nomor duplikat, constraint, RLS & hak akses `anon`/`authenticated`, lock, pembuatan tab otomatis tanpa duplikat, ringkasan harian & total, pengelompokan wilayah, update tanpa duplikasi, hapus + hitung ulang, gagal → retry → sukses, 12 submit paralel, perubahan di tengah sinkronisasi.
+- **Integrasi** (`tests/integration`, PostgreSQL asli + Google Sheets *test double*): trigger `report_date` & `created_at`, edit/hapus/pindah bulan, idempotensi `submission_id`, nomor duplikat, constraint, RLS & hak akses `anon`/`authenticated`, lock, pembuatan tab otomatis tanpa duplikat, ringkasan harian & total, pengelompokan wilayah, update tanpa duplikasi, hapus + hitung ulang, gagal → retry → sukses, 12 submit paralel, perubahan di tengah pengiriman, serta antrean batch (menumpuk lalu terkirim sekali tekan).
 
 Yang **belum** diuji karena memerlukan kredensial Anda: panggilan nyata ke Google Sheets API, Gemini API, dan Supabase (PostgREST/Auth) yang ter-hosting. Lakukan langkah 6 di bagian Deploy sebagai uji penerimaan.
 
@@ -172,10 +178,10 @@ Yang **belum** diuji karena memerlukan kredensial Anda: panggilan nyata ke Googl
 src/
   app/(app)/…            halaman yang memerlukan login + server actions
   app/login/             login Supabase Auth
-  app/api/cron/sync/     retry sinkronisasi (CRON_SECRET)
+  app/api/cron/sync/     pengiriman cadangan harian (CRON_SECRET)
   lib/location/          dataset lokasi, klasifikasi, Gemini, cache
   lib/sheets/            layout tab bulanan + gateway Google Sheets
-  lib/sync/              mesin sinkronisasi (lock, revisi, retry)
+  lib/sync/              mesin pengiriman (lock, revisi, retry)
   lib/leads/ handover/ master/ whatsapp/   logika bisnis
 supabase/migrations/     skema database
 tests/                   unit & integrasi

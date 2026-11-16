@@ -40,8 +40,8 @@ export default async function HandoverPage({ params, searchParams }: { params: P
           {justSaved && "Prospek tersimpan di database. "}
           Google Sheets: <SyncBadge status={lead.sync?.status} />{" "}
           {lead.sync?.status === "success" && `tab ${sheetTitleForMonth(lead.sync.month)}.`}
-          {lead.sync?.status === "failed" && `${lead.sync.error ?? ""} Sinkronkan ulang dari Data Prospek atau Laporan Bulanan.`}
-          {lead.sync?.status === "pending" && "Menunggu konfirmasi Google Sheets."}
+          {lead.sync?.status === "pending" && `Menunggu dikirim ke tab ${sheetTitleForMonth(lead.sync.month)}; tekan "Kirim sekarang" di Dashboard.`}
+          {lead.sync?.status === "failed" && `${lead.sync.error ?? ""} Coba kirim lagi dari Dashboard atau Laporan Bulanan.`}
         </Notice>
       </div>
       <HandoverPanel leadId={lead.id} lead={handoverLead} message={buildHandoverMessage(handoverLead)} handovers={handovers} groups={groups} />
