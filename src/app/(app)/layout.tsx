@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Nav } from "@/components/nav";
 import { requireUser } from "@/lib/auth";
@@ -9,9 +10,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen md:flex">
       <aside className="border-b border-neutral-200 bg-white px-4 py-3 md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0 md:py-5">
         <Link href="/" className="mb-3 flex items-center gap-2 md:mb-6 md:px-3">
-          <span className="h-6 w-1.5 rounded-sm bg-brand-600" aria-hidden />
+          <Image src="/logo-mark.png" alt="" width={32} height={30} priority className="h-8 w-auto" />
           <span className="text-sm leading-tight font-semibold text-neutral-900">
-            DIPO Lead Handover
+            DDC Leads Report
             <span className="block text-xs font-normal text-neutral-500">Mitsubishi DIPO</span>
           </span>
         </Link>

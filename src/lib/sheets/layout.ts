@@ -1,6 +1,6 @@
 import type { sheets_v4 } from "@googleapis/sheets";
-import { REPORTING_REGIONS, type LeadSource, type ReportingRegion } from "../constants";
-import { datesOfMonth, formatDayDateId, monthKeyOf, toSheetsSerialDate, type IsoDate } from "../dates";
+import { REPORTING_REGIONS, type LeadSource, type ReportingRegion, type ServiceSource } from "../constants";
+import { datesOfMonth, formatDayDateId, monthKeyOf, sheetTitleForMonth, toSheetsSerialDate, type IsoDate } from "../dates";
 
 /**
  * Monthly tab template. Every sync rebuilds the whole tab from Supabase (the
@@ -16,29 +16,51 @@ export interface SheetLead {
   domicile: string;
   dealerName: string;
   unit: string;
-  followUpDate: IsoDate | null;
   source: LeadSource;
   reportDate: IsoDate;
   createdAt: string;
   region: ReportingRegion;
 }
 
+/** One service enquiry, listed in its own block to the right of the sales tables. */
+export interface SheetService {
+  id: string;
+  dealerName: string;
+  name: string;
+  location: string;
+  unit: string;
+  source: ServiceSource;
+  finalNote: string | null;
+  reportDate: IsoDate;
+  createdAt: string;
+}
+
 export const REGION_TABLE_COLUMNS = ["NO", "NAMA", "NOMOR TLP", "LOCATION", "DEALER", "UNIT", "FOLLOW UP", "SOURCE"] as const;
-/** Order of the source columns in the daily summary, as in the reference sheet. */
+export const SERVICE_TABLE_COLUMNS = ["NO", "DEALER", "NAMA", "LOCATION", "UNIT", "FOLLOW UP", "SOURCE", "FINAL"] as const;
+/** Order of the SALES source columns in the daily summary, as in the reference sheet. */
 export const SUMMARY_SOURCES = ["GOOGLE", "META", "TIKTOK"] as const satisfies readonly LeadSource[];
+/** Order of the SERVICE source columns beside them. */
+export const SUMMARY_SERVICE_SOURCES = ["GOOGLE", "META"] as const satisfies readonly ServiceSource[];
 
 export const COLORS = {
   yellow: { red: 1, green: 1, blue: 0 },
   green: { red: 0.5725, green: 0.8157, blue: 0.3137 },
   lightGreen: { red: 0.851, green: 0.9176, blue: 0.8275 },
   lightBlue: { red: 0.8118, green: 0.8863, blue: 0.9529 },
+  red: { red: 0.8, green: 0, blue: 0 },
+  white: { red: 1, green: 1, blue: 1 },
   black: { red: 0, green: 0, blue: 0 },
 } as const;
 
-const COLUMN_WIDTHS = [48, 230, 140, 170, 210, 120, 110, 95];
+const SALES_COLUMN_COUNT = REGION_TABLE_COLUMNS.length;
+/** One empty column separates the sales side from the service block. */
+const SERVICE_COLUMN_START = SALES_COLUMN_COUNT + 1;
+const COLUMN_COUNT = SERVICE_COLUMN_START + SERVICE_TABLE_COLUMNS.length;
+const COLUMN_WIDTHS = [48, 230, 140, 170, 210, 120, 110, 95, 24, 44, 180, 200, 170, 170, 105, 90, 300];
 const EMPTY_REGION_ROWS = 3;
+/** The service block always offers this many numbered rows, as in DDC Report. */
+const MIN_SERVICE_ROWS = 30;
 const GAP_ROWS = 2;
-const COLUMN_COUNT = REGION_TABLE_COLUMNS.length;
 
 type Style =
   | "headerYellow"
@@ -50,7 +72,9 @@ type Style =
   | "number"
   | "date"
   | "regionTitle"
-  | "tableHeader";
+  | "tableHeader"
+  | "serviceBanner"
+  | "serviceHeader";
 
 export type CellValue = string | number | { formula: string } | { date: IsoDate } | null;
 
@@ -75,12 +99,22 @@ export interface RegionSection {
   leadIds: string[];
 }
 
+export interface ServiceSection {
+  bannerRow: number;
+  headerRow: number;
+  firstDataRow: number;
+  dataRowCount: number;
+  firstColumn: number;
+  serviceIds: string[];
+}
+
 export interface MonthLayout {
   monthKey: string;
   rows: LayoutCell[][];
   merges: Merge[];
   summary: { headerRow: number; firstDayRow: number; dayCount: number; totalRow: number };
   regions: RegionSection[];
+  service: ServiceSection;
 }
 
 const blankRow = (): LayoutCell[] => Array.from({ length: COLUMN_COUNT }, () => ({ value: null, style: null }));
@@ -93,42 +127,67 @@ export function sortLeadsForReport(leads: SheetLead[]): SheetLead[] {
   );
 }
 
-export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLayout {
+export function sortServicesForReport(services: SheetService[]): SheetService[] {
+  return [...services].sort(
+    (a, b) => a.reportDate.localeCompare(b.reportDate) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+  );
+}
+
+export function buildMonthLayout(monthKey: string, leads: SheetLead[], services: SheetService[] = []): MonthLayout {
   for (const lead of leads) {
     if (monthKeyOf(lead.reportDate) !== monthKey) {
       throw new Error(`Lead ${lead.id} (${lead.reportDate}) does not belong to ${monthKey}`);
+    }
+  }
+  for (const entry of services) {
+    if (monthKeyOf(entry.reportDate) !== monthKey) {
+      throw new Error(`Service ${entry.id} (${entry.reportDate}) does not belong to ${monthKey}`);
     }
   }
   const rows: LayoutCell[][] = [];
   const merges: Merge[] = [];
   const sorted = sortLeadsForReport(leads);
 
-  // --- A. Daily source summary --------------------------------------------
+  // --- A. Daily summary: SALES and SERVICE side by side ---------------------
+  const salesFirstCol = 2;
+  const serviceFirstCol = salesFirstCol + SUMMARY_SOURCES.length;
+  const totalCol = serviceFirstCol + SUMMARY_SERVICE_SOURCES.length;
+
   const header = blankRow();
   const subHeader = blankRow();
   header[0] = { value: "NO", style: "headerYellow" };
   header[1] = { value: "HARI/TANGGAL", style: "headerYellow" };
-  header[2] = { value: "SALES", style: "headerGreen" };
-  header[3] = { value: null, style: "headerGreen" };
-  header[4] = { value: null, style: "headerGreen" };
-  header[5] = { value: "TOTAL", style: "headerYellow" };
+  header[salesFirstCol] = { value: "SALES", style: "headerGreen" };
+  header[serviceFirstCol] = { value: "SERVICE", style: "headerGreen" };
+  header[totalCol] = { value: "TOTAL", style: "headerYellow" };
+  for (let c = salesFirstCol + 1; c < serviceFirstCol; c++) header[c] = { value: null, style: "headerGreen" };
+  for (let c = serviceFirstCol + 1; c < totalCol; c++) header[c] = { value: null, style: "headerGreen" };
   subHeader[0] = { value: null, style: "headerYellow" };
   subHeader[1] = { value: null, style: "headerYellow" };
-  SUMMARY_SOURCES.forEach((source, i) => (subHeader[2 + i] = { value: source, style: "headerGreen" }));
-  subHeader[5] = { value: null, style: "headerYellow" };
+  SUMMARY_SOURCES.forEach((source, i) => (subHeader[salesFirstCol + i] = { value: source, style: "headerGreen" }));
+  SUMMARY_SERVICE_SOURCES.forEach((source, i) => (subHeader[serviceFirstCol + i] = { value: source, style: "headerGreen" }));
+  subHeader[totalCol] = { value: null, style: "headerYellow" };
   rows.push(header, subHeader);
   merges.push(
     { row: 0, col: 0, rowSpan: 2, colSpan: 1 },
     { row: 0, col: 1, rowSpan: 2, colSpan: 1 },
-    { row: 0, col: 2, rowSpan: 1, colSpan: 3 },
-    { row: 0, col: 5, rowSpan: 2, colSpan: 1 },
+    { row: 0, col: salesFirstCol, rowSpan: 1, colSpan: SUMMARY_SOURCES.length },
+    { row: 0, col: serviceFirstCol, rowSpan: 1, colSpan: SUMMARY_SERVICE_SOURCES.length },
+    { row: 0, col: totalCol, rowSpan: 2, colSpan: 1 },
   );
 
-  const counts = new Map<string, Record<LeadSource, number>>();
+  const salesCounts = new Map<string, Record<LeadSource, number>>();
   for (const lead of sorted) {
-    const day = counts.get(lead.reportDate) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const day = salesCounts.get(lead.reportDate) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
     day[lead.source] += 1;
-    counts.set(lead.reportDate, day);
+    salesCounts.set(lead.reportDate, day);
+  }
+  const sortedServices = sortServicesForReport(services);
+  const serviceCounts = new Map<string, Record<ServiceSource, number>>();
+  for (const entry of sortedServices) {
+    const day = serviceCounts.get(entry.reportDate) ?? { GOOGLE: 0, META: 0 };
+    day[entry.source] += 1;
+    serviceCounts.set(entry.reportDate, day);
   }
 
   const days = datesOfMonth(monthKey);
@@ -136,11 +195,14 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLay
   days.forEach((date, i) => {
     const row = blankRow();
     const r = a1Row(rows.length);
-    const day = counts.get(date) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const sales = salesCounts.get(date) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const service = serviceCounts.get(date) ?? { GOOGLE: 0, META: 0 };
     row[0] = { value: i + 1, style: "number" };
     row[1] = { value: formatDayDateId(date), style: "cell" };
-    SUMMARY_SOURCES.forEach((source, j) => (row[2 + j] = { value: day[source], style: "number" }));
-    row[5] = { value: { formula: `=SUM(C${r}:E${r})` }, style: "number" };
+    SUMMARY_SOURCES.forEach((source, j) => (row[salesFirstCol + j] = { value: sales[source], style: "number" }));
+    SUMMARY_SERVICE_SOURCES.forEach((source, j) => (row[serviceFirstCol + j] = { value: service[source], style: "number" }));
+    // TOTAL spans sales and service, as the TOTAL/day column does in DDC Report.
+    row[totalCol] = { value: { formula: `=SUM(${COL[salesFirstCol]}${r}:${COL[totalCol - 1]}${r})` }, style: "number" };
     rows.push(row);
   });
   const lastDayA1 = a1Row(rows.length - 1);
@@ -148,7 +210,7 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLay
   const totalRow = blankRow();
   totalRow[0] = { value: "TOTAL", style: "totalLabel" };
   totalRow[1] = { value: null, style: "totalLabel" };
-  for (let c = 2; c <= 5; c++) {
+  for (let c = salesFirstCol; c <= totalCol; c++) {
     totalRow[c] = { value: { formula: `=SUM(${COL[c]}${a1Row(firstDayRow)}:${COL[c]}${lastDayA1})` }, style: "totalNumber" };
   }
   rows.push(totalRow);
@@ -178,7 +240,7 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLay
         { value: lead.domicile, style: "cell" },
         { value: lead.dealerName, style: "cell" },
         { value: lead.unit, style: "cell" },
-        { value: lead.followUpDate ? { date: lead.followUpDate } : null, style: "date" },
+        { value: { date: lead.reportDate }, style: "date" },
         { value: lead.source, style: "cellCenter" },
       ]);
     });
@@ -197,12 +259,57 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[]): MonthLay
     });
   }
 
+  // --- C. Service block, to the right of everything above -------------------
+  // The sales sections build rows only as wide as they need, so pad them first:
+  // writing a service column into a short row would otherwise leave a hole.
+  for (const row of rows) {
+    while (row.length < COLUMN_COUNT) row.push({ value: null, style: null });
+  }
+  const col = SERVICE_COLUMN_START;
+  const at = (rowIndex: number): LayoutCell[] => {
+    while (rows.length <= rowIndex) rows.push(blankRow());
+    return rows[rowIndex]!;
+  };
+
+  const bannerRow = 0;
+  at(bannerRow)[col] = { value: `SERVICE ${sheetTitleForMonth(monthKey).toUpperCase()}`, style: "serviceBanner" };
+  for (let i = 1; i < SERVICE_TABLE_COLUMNS.length; i++) at(bannerRow)[col + i] = { value: null, style: "serviceBanner" };
+  merges.push({ row: bannerRow, col, rowSpan: 1, colSpan: SERVICE_TABLE_COLUMNS.length });
+
+  const serviceHeaderRow = 1;
+  SERVICE_TABLE_COLUMNS.forEach((name, i) => {
+    at(serviceHeaderRow)[col + i] = { value: name, style: "serviceHeader" };
+  });
+
+  const firstServiceRow = serviceHeaderRow + 1;
+  const serviceRowCount = Math.max(MIN_SERVICE_ROWS, sortedServices.length);
+  for (let i = 0; i < serviceRowCount; i++) {
+    const row = at(firstServiceRow + i);
+    const entry = sortedServices[i];
+    row[col] = { value: i + 1, style: "cellCenter" };
+    row[col + 1] = { value: entry?.dealerName ?? null, style: "cell" };
+    row[col + 2] = { value: entry?.name ?? null, style: "cell" };
+    row[col + 3] = { value: entry?.location ?? null, style: "cell" };
+    row[col + 4] = { value: entry?.unit ?? null, style: "cell" };
+    row[col + 5] = { value: entry ? { date: entry.reportDate } : null, style: "date" };
+    row[col + 6] = { value: entry?.source ?? null, style: "cellCenter" };
+    row[col + 7] = { value: entry?.finalNote ?? null, style: "cell" };
+  }
+
   return {
     monthKey,
     rows,
     merges,
     summary: { headerRow: 0, firstDayRow, dayCount: days.length, totalRow: totalRowIndex },
     regions,
+    service: {
+      bannerRow,
+      headerRow: serviceHeaderRow,
+      firstDataRow: firstServiceRow,
+      dataRowCount: serviceRowCount,
+      firstColumn: col,
+      serviceIds: sortedServices.map((e) => e.id),
+    },
   };
 }
 
@@ -243,6 +350,14 @@ const STYLE_FORMATS: Record<Style, sheets_v4.Schema$CellFormat> = {
   tableHeader: {
     backgroundColor: COLORS.lightBlue, borders: allBorders, horizontalAlignment: "CENTER", verticalAlignment: "MIDDLE",
     textFormat: { ...base, bold: true },
+  },
+  serviceBanner: {
+    backgroundColor: COLORS.red, borders: allBorders, horizontalAlignment: "CENTER", verticalAlignment: "MIDDLE",
+    textFormat: { ...base, bold: true, fontSize: 11, foregroundColor: COLORS.white },
+  },
+  serviceHeader: {
+    backgroundColor: COLORS.red, borders: allBorders, horizontalAlignment: "CENTER", verticalAlignment: "MIDDLE",
+    textFormat: { ...base, bold: true, foregroundColor: COLORS.white },
   },
 };
 

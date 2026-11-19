@@ -37,10 +37,11 @@ describe("lead insertion and report_date", () => {
     expect(await monthRow(db.pool, "2026-11")).toBeUndefined();
   });
 
-  it("ignores the follow-up date for the reporting month", async () => {
-    const lead = await insertLead(db.pool, dealerId, { leadDate: "2026-11-10", followUp: "2026-12-05" });
-    expect(lead.report_date).toBe("2026-11-10");
-    expect((await syncRow(db.pool, lead.id))?.spreadsheet_month).toBe("2026-11");
+  it("has no separate follow-up column any more", async () => {
+    const r = await db.admin.query(
+      "select 1 from information_schema.columns where table_name = 'leads' and column_name = 'follow_up_date'",
+    );
+    expect(r.rows).toEqual([]);
   });
 
   it("creates a pending sync row in the same transaction", async () => {
@@ -56,6 +57,33 @@ describe("lead insertion and report_date", () => {
       [randomUUID(), dealerId],
     );
     expect(r.rows[0].report_date).toBe("2026-11-03");
+  });
+});
+
+describe("catatan customer", () => {
+  it("stores the note and keeps it through an edit", async () => {
+    const note = "Cust terakhir minta info angsuran untuk DP 50 juta";
+    const lead = await insertLead(db.pool, dealerId);
+    await db.pool.query("update public.leads set customer_note = $2 where id = $1", [lead.id, note]);
+    const after = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(after.rows[0].customer_note).toBe(note);
+
+    await db.pool.query("update public.leads set name = 'Nama Baru' where id = $1", [lead.id]);
+    const kept = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(kept.rows[0].customer_note).toBe(note);
+  });
+
+  it("defaults to empty and rejects a note that is too long or blank", async () => {
+    const lead = await insertLead(db.pool, dealerId, { phone: "081288887777" });
+    const fresh = await db.pool.query("select customer_note from public.leads where id = $1", [lead.id]);
+    expect(fresh.rows[0].customer_note).toBeNull();
+
+    await expect(
+      db.pool.query("update public.leads set customer_note = $2 where id = $1", [lead.id, "x".repeat(501)]),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      db.pool.query("update public.leads set customer_note = '   ' where id = $1", [lead.id]),
+    ).rejects.toMatchObject({ code: "23514" });
   });
 });
 

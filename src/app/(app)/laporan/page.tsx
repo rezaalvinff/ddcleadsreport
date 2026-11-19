@@ -6,10 +6,10 @@ import { REPORTING_REGIONS } from "@/lib/constants";
 import { formatTimestampId, monthLabelId, sheetTitleForMonth, shiftMonth, todayJakarta } from "@/lib/dates";
 import { getAdminDb } from "@/lib/db/admin";
 import { readEnv } from "@/lib/env";
-import { listOpenSyncLeads, listSheetMonths } from "@/lib/reports";
+import { listOpenSyncRows, listSheetMonths } from "@/lib/reports";
 import { monthParam, withParams, type SearchParams } from "@/lib/search-params";
 import { spreadsheetUrl } from "@/lib/sheets/gateway";
-import { buildMonthLayout, SUMMARY_SOURCES } from "@/lib/sheets/layout";
+import { buildMonthLayout, SUMMARY_SERVICE_SOURCES, SUMMARY_SOURCES } from "@/lib/sheets/layout";
 import { createSupabaseSyncStore } from "@/lib/sync/store";
 import { SyncButton } from "./sync-button";
 
@@ -19,18 +19,21 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   await requireUser();
   const monthKey = monthParam(await searchParams);
   const db = getAdminDb();
-  const [months, leads, openLeads] = await Promise.all([
+  const store = createSupabaseSyncStore(db);
+  const [months, leads, services, openLeads] = await Promise.all([
     listSheetMonths(db),
-    createSupabaseSyncStore(db).loadMonthLeads(monthKey),
-    listOpenSyncLeads(db, monthKey),
+    store.loadMonthLeads(monthKey),
+    store.loadMonthServices(monthKey),
+    listOpenSyncRows(db, monthKey),
   ]);
-  const layout = buildMonthLayout(monthKey, leads);
+  const layout = buildMonthLayout(monthKey, leads, services);
   const status = months.find((m) => m.monthKey === monthKey);
   const sheetsConfigured = readEnv("sheets").ok;
   const upToDate = status ? status.revision <= status.syncedRevision && status.openRows === 0 : leads.length === 0;
   const url = spreadsheetUrl(status?.sheetId);
   const days = layout.rows.slice(layout.summary.firstDayRow, layout.summary.totalRow);
-  const totals = SUMMARY_SOURCES.map((_, i) => days.reduce((n, row) => n + Number(row[2 + i]!.value ?? 0), 0));
+  const countColumns = SUMMARY_SOURCES.length + SUMMARY_SERVICE_SOURCES.length;
+  const totals = Array.from({ length: countColumns }, (_, i) => days.reduce((n, row) => n + Number(row[2 + i]!.value ?? 0), 0));
   const current = todayJakarta().slice(0, 7);
 
   return (
@@ -104,8 +107,13 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                   <th>No</th>
                   <th>Hari/Tanggal</th>
                   {SUMMARY_SOURCES.map((s) => (
-                    <th key={s} className="text-center">
+                    <th key={`sales-${s}`} className="text-center">
                       {s}
+                    </th>
+                  ))}
+                  {SUMMARY_SERVICE_SOURCES.map((s) => (
+                    <th key={`svc-${s}`} className="text-center text-brand-700">
+                      SVC {s}
                     </th>
                   ))}
                   <th className="text-center">Total</th>
@@ -113,7 +121,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
               </thead>
               <tbody>
                 {days.map((row) => {
-                  const counts = SUMMARY_SOURCES.map((_, i) => Number(row[2 + i]!.value ?? 0));
+                  const counts = Array.from({ length: countColumns }, (_, i) => Number(row[2 + i]!.value ?? 0));
                   const total = counts.reduce((a, b) => a + b, 0);
                   return (
                     <tr key={String(row[0]!.value)} className={total ? "" : "text-neutral-400"}>
@@ -159,10 +167,11 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                 <h3 className="mb-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Belum tersinkron</h3>
                 <ul className="space-y-1 text-sm">
                   {openLeads.map((l) => (
-                    <li key={l.leadId}>
-                      <Link className="link" href={`/prospek/${l.leadId}/edit`}>
+                    <li key={`${l.kind}-${l.id}`}>
+                      <Link className="link" href={l.kind === "lead" ? `/prospek/${l.id}/edit` : `/service/${l.id}/edit`}>
                         {l.name}
                       </Link>{" "}
+                      {l.kind === "service" && <span className="text-xs text-neutral-500">(service)</span>}{" "}
                       <span className={l.status === "failed" ? "text-red-700" : "text-amber-700"}>
                         {l.status === "failed" ? `gagal (${l.retryCount}x)` : "menunggu"}
                       </span>

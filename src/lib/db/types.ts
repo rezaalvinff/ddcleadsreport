@@ -98,8 +98,8 @@ export type Database = {
           updated_at: string;
           dealer_id: string;
           unit: string;
-          follow_up_date: string | null;
           source: string;
+          customer_note: string | null;
         };
         Insert: {
           id?: string;
@@ -116,13 +116,52 @@ export type Database = {
           report_date?: string;
           dealer_id: string;
           unit: string;
-          follow_up_date?: string | null;
           source: string;
+          customer_note?: string | null;
         };
         Update: Partial<Omit<Database["public"]["Tables"]["leads"]["Insert"], "submission_id">>;
         Relationships: [
           {
             foreignKeyName: "leads_dealer_id_fkey";
+            columns: ["dealer_id"];
+            isOneToOne: false;
+            referencedRelation: "dealers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      service_entries: {
+        Row: {
+          id: string;
+          submission_id: string;
+          dealer_id: string;
+          name: string;
+          location: string;
+          unit: string;
+          source: string;
+          final_note: string | null;
+          entry_date: string | null;
+          report_date: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          submission_id: string;
+          dealer_id: string;
+          name: string;
+          location: string;
+          unit: string;
+          source: string;
+          final_note?: string | null;
+          entry_date?: string | null;
+          /** Set by trigger; any value sent is overwritten. */
+          report_date?: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["service_entries"]["Insert"], "submission_id">>;
+        Relationships: [
+          {
+            foreignKeyName: "service_entries_dealer_id_fkey";
             columns: ["dealer_id"];
             isOneToOne: false;
             referencedRelation: "dealers";
@@ -150,7 +189,8 @@ export type Database = {
       spreadsheet_sync_logs: {
         Row: {
           id: string;
-          lead_id: string;
+          lead_id: string | null;
+          service_id: string | null;
           spreadsheet_month: string;
           sync_status: string;
           error_message: string | null;
@@ -170,6 +210,13 @@ export type Database = {
             referencedRelation: "leads";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "spreadsheet_sync_logs_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: true;
+            referencedRelation: "service_entries";
+            referencedColumns: ["id"];
+          },
         ];
       };
       lead_handovers: {
@@ -181,6 +228,11 @@ export type Database = {
           opened_at: string | null;
           sent_marked_at: string | null;
           created_at: string;
+          auto_status: string | null;
+          auto_error: string | null;
+          auto_attempts: number;
+          auto_queued_at: string | null;
+          auto_updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -191,6 +243,8 @@ export type Database = {
           copied_at?: string | null;
           opened_at?: string | null;
           sent_marked_at?: string | null;
+          auto_status?: string | null;
+          auto_queued_at?: string | null;
         };
         Relationships: [
           {
@@ -226,6 +280,23 @@ export type Database = {
       };
       fail_sheet_sync: {
         Args: { p_month: string; p_error: string };
+        Returns: undefined;
+      };
+      claim_whatsapp_sends: {
+        Args: { p_limit: number; p_stale_seconds: number };
+        Returns: {
+          handover_id: string;
+          group_name: string;
+          lead_name: string;
+          domicile: string;
+          unit: string;
+          source: string;
+          phone: string;
+          customer_note: string | null;
+        }[];
+      };
+      finish_whatsapp_send: {
+        Args: { p_handover: string; p_ok: boolean; p_error: string | null };
         Returns: undefined;
       };
     };

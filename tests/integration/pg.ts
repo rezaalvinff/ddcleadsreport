@@ -4,7 +4,7 @@ import { userInfo } from "node:os";
 import path from "node:path";
 import pg from "pg";
 import { monthRange } from "@/lib/dates";
-import { toSheetLead, type SyncStore } from "@/lib/sync/store";
+import { toSheetLead, toSheetService, type SyncStore } from "@/lib/sync/store";
 
 /**
  * Creates a throwaway database on a local PostgreSQL server, applies a minimal
@@ -99,7 +99,7 @@ export function createPgSyncStore(pool: pg.Pool): SyncStore {
     async loadMonthLeads(monthKey) {
       const { start, end } = monthRange(monthKey);
       const r = await pool.query(
-        `select l.id, l.name, l.phone, l.domicile, l.unit, to_char(l.follow_up_date, 'YYYY-MM-DD') as follow_up_date, l.source,
+        `select l.id, l.name, l.phone, l.domicile, l.unit, l.source,
                 to_char(l.report_date, 'YYYY-MM-DD') as report_date, to_char(l.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at,
                 l.reporting_region, d.dealer_name
            from public.leads l join public.dealers d on d.id = l.dealer_id
@@ -108,6 +108,20 @@ export function createPgSyncStore(pool: pg.Pool): SyncStore {
         [start, end],
       );
       return r.rows.map(toSheetLead);
+    },
+    async loadMonthServices(monthKey) {
+      const { start, end } = monthRange(monthKey);
+      const r = await pool.query(
+        `select s.id, s.name, s.location, s.unit, s.source, s.final_note,
+                to_char(s.report_date, 'YYYY-MM-DD') as report_date,
+                to_char(s.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at,
+                d.dealer_name
+           from public.service_entries s join public.dealers d on d.id = s.dealer_id
+          where s.report_date between $1 and $2
+          order by s.report_date, s.created_at, s.id`,
+        [start, end],
+      );
+      return r.rows.map(toSheetService);
     },
     async completeSync(monthKey, token, revision, sheetId, rows) {
       await pool.query("select public.complete_sheet_sync($1, $2, $3, $4, $5::jsonb)", [

@@ -37,11 +37,17 @@ export const leadInputSchema = z
     dealerId: z.uuid("Pilih dealer."),
     unit: z.enum([...UNIT_OPTIONS, UNIT_OTHER], { error: "Pilih unit." }),
     unitOther: z.string().trim().max(60, "Unit maksimal 60 karakter.").optional(),
-    followUpDate: optionalDate("Tanggal follow up"),
     source: z.enum(LEAD_SOURCES, { error: "Pilih source." }),
+    customerNote: z
+      .string()
+      .optional()
+      .transform((v) => (v ?? "").trim().replace(/[ \t]+/g, " "))
+      .pipe(z.string().max(500, "Catatan customer maksimal 500 karakter."))
+      .transform((v) => v || null),
     reportingRegion: z.enum(REPORTING_REGIONS, { error: "Pilih wilayah pelaporan." }),
     groupIds: z.array(z.uuid()).max(20).default([]).transform((ids) => [...new Set(ids)]),
     confirmDuplicate: z.boolean().default(false),
+    autoSend: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.unit === UNIT_OTHER && (!v.unitOther || v.unitOther.length < 2)) {

@@ -25,6 +25,9 @@ const schemas = {
   cron: z.object({
     CRON_SECRET: z.string().min(16, "minimal 16 karakter"),
   }),
+  waWorker: z.object({
+    WA_WORKER_SECRET: z.string().min(24, "minimal 24 karakter"),
+  }),
 } as const;
 
 export type EnvGroup = keyof typeof schemas;

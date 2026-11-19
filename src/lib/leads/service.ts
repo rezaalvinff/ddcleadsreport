@@ -31,13 +31,13 @@ export interface LeadRecord {
   dealerId: string;
   dealerName: string;
   unit: string;
-  followUpDate: string | null;
   source: string;
+  customerNote: string | null;
   sync: LeadSync | null;
 }
 
 const LEAD_SELECT =
-  "id, name, phone, domicile, city, province, reporting_region, classification_status, lead_date, report_date, created_at, updated_at, dealer_id, unit, follow_up_date, source, dealer:dealers(dealer_name), sync:spreadsheet_sync_logs(sync_status, error_message, retry_count, synced_at, spreadsheet_month)";
+  "id, name, phone, domicile, city, province, reporting_region, classification_status, lead_date, report_date, created_at, updated_at, dealer_id, unit, source, customer_note, dealer:dealers(dealer_name), sync:spreadsheet_sync_logs(sync_status, error_message, retry_count, synced_at, spreadsheet_month)";
 
 type LeadRow = {
   id: string;
@@ -54,8 +54,8 @@ type LeadRow = {
   updated_at: string;
   dealer_id: string;
   unit: string;
-  follow_up_date: string | null;
   source: string;
+  customer_note: string | null;
   dealer: { dealer_name: string } | null;
   sync:
     | { sync_status: string; error_message: string | null; retry_count: number; synced_at: string | null; spreadsheet_month: string }
@@ -80,8 +80,8 @@ function toRecord(row: LeadRow): LeadRecord {
     dealerId: row.dealer_id,
     dealerName: row.dealer?.dealer_name ?? "-",
     unit: row.unit,
-    followUpDate: row.follow_up_date,
     source: row.source,
+    customerNote: row.customer_note,
     sync: row.sync
       ? {
           status: row.sync.sync_status as SyncStatus,
@@ -258,8 +258,8 @@ export async function createLead(db: Db, input: LeadInput): Promise<SaveLeadResu
       lead_date: input.leadDate,
       dealer_id: input.dealerId,
       unit: input.unit,
-      follow_up_date: input.followUpDate,
       source: input.source,
+      customer_note: input.customerNote,
     })
     .select("id, report_date")
     .single();
@@ -310,8 +310,8 @@ export async function updateLead(db: Db, id: string, input: LeadInput): Promise<
       lead_date: input.leadDate,
       dealer_id: input.dealerId,
       unit: input.unit,
-      follow_up_date: input.followUpDate,
       source: input.source,
+      customer_note: input.customerNote,
     })
     .eq("id", id)
     .select("report_date")

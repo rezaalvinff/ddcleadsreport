@@ -9,19 +9,29 @@ const INVITE_LINK = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;
 
 export interface HandoverLead {
   name: string;
+  phone: string;
   domicile: string;
   unit: string;
   source: string;
+  /** Free-text note from the prospect, woven into the closing line. */
+  customerNote?: string | null;
 }
 
+const CLOSING = "Mohon untuk segera di follow up ya, terimakasih\u263A\uFE0F\uD83D\uDE4F\uD83C\uDFFB";
+
 export function buildHandoverMessage(lead: HandoverLead): string {
+  // The note leads the closing sentence, so drop any punctuation it ends with.
+  const note = (lead.customerNote ?? "").trim().replace(/[.,;:\s]+$/, "");
   return [
-    "HOT PROSPEK MITSUBISHI DIPO",
-    `Nama: ${lead.name}`,
-    `Domisili: ${lead.domicile}`,
-    `Unit: ${lead.unit}`,
-    `Source: ${lead.source}`,
-    "Mohon segera ditindaklanjuti oleh PIC cabang terkait. Terima kasih.",
+    "Halo, saya mau info leads baru lagi berikut data customernya :",
+    "",
+    `Source : ${lead.source}`,
+    `Nama : ${lead.name}`,
+    `Nomer WA : ${lead.phone}`,
+    `Tipe unit : ${lead.unit}`,
+    `Domisili : ${lead.domicile}`,
+    "",
+    note ? `${note}, ${CLOSING}` : CLOSING,
   ].join("\n");
 }
 

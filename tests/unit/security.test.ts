@@ -87,6 +87,25 @@ describe("secrets stay on the server", () => {
   });
 });
 
+describe("proxy matcher", () => {
+  // Reads the shipped string so the test fails if the matcher is narrowed again.
+  const source = read(path.join(root, "src/proxy.ts"));
+  const raw = /matcher: \["([^"]+)"\]/.exec(source)?.[1];
+  const matcher = new RegExp(`^${raw?.replace(/\\\\/g, "\\")}$`);
+
+  it("guards every application page", () => {
+    for (const p of ["/", "/prospek", "/prospek/tambah", "/laporan", "/cabang", "/pengaturan", "/handover/abc"]) {
+      expect(matcher.test(p), p).toBe(true);
+    }
+  });
+
+  it("lets branding assets and build output through, so they load on the sign-in page", () => {
+    for (const p of ["/logo.png", "/icon.png", "/favicon.ico", "/_next/static/chunk.js", "/_next/image", "/api/cron/sync", "/api/wa/poll", "/api/wa/result"]) {
+      expect(matcher.test(p), p).toBe(false);
+    }
+  });
+});
+
 describe("cron endpoint authorisation", () => {
   const secret = "s3cret-value-1234567890";
   it("accepts only the exact bearer secret", () => {
@@ -100,5 +119,14 @@ describe("cron endpoint authorisation", () => {
   it("is excluded from the session proxy only because it checks CRON_SECRET itself", () => {
     expect(read(path.join(root, "src/app/api/cron/sync/route.ts"))).toContain("isAuthorizedCron(");
     expect(read(path.join(root, "src/proxy.ts"))).toContain("api/cron");
+  });
+
+  it("guards every worker endpoint with the shared secret, since the proxy skips them", () => {
+    for (const route of ["src/app/api/wa/poll/route.ts", "src/app/api/wa/result/route.ts"]) {
+      const source = read(path.join(root, route));
+      expect(source, route).toContain("isAuthorizedCron(");
+      expect(source, route).toContain('readEnv("waWorker")');
+      expect(source, route).toContain("401");
+    }
   });
 });

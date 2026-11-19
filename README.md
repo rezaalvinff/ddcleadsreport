@@ -1,4 +1,4 @@
-# DIPO Lead Handover
+# DDC Leads Report
 
 Aplikasi web internal untuk mencatat prospek HOT Mitsubishi DIPO **sekali input**, lalu otomatis:
 
@@ -9,7 +9,9 @@ Aplikasi web internal untuk mencatat prospek HOT Mitsubishi DIPO **sekali input*
 
 Prospek yang disubmit **ditumpuk dulu** sepanjang hari. Spreadsheet baru diperbarui ketika Anda menekan **Kirim sekarang** di Dashboard.
 
-Aplikasi ini tidak terhubung ke Qiscus dan tidak memakai otomasi WhatsApp tidak resmi (tanpa Baileys, whatsapp-web.js, WAHA, Evolution API, browser automation, dsb.). Nomor WhatsApp Business Anda tidak pernah disambungkan ke layanan apa pun.
+Aplikasi ini tidak terhubung ke Qiscus. Aplikasi di Vercel **tidak pernah** menghubungi WhatsApp: jalur bawaannya tetap manual (salin pesan, kirim sendiri).
+
+Tersedia worker opsional di `worker/` yang bisa mengirim otomatis memakai Baileys — pustaka **tidak resmi** yang melanggar Ketentuan Layanan WhatsApp dan berisiko membuat nomor diblokir. Worker itu berjalan di luar Vercel dan mati-hidup sepenuhnya atas kendali Anda; selama `WA_WORKER_SECRET` kosong, aplikasi berperilaku manual seperti semula. Baca `worker/README.md` sebelum memakainya.
 
 ## Teknologi
 
@@ -20,7 +22,8 @@ Next.js 16 (App Router, server actions) · TypeScript · Tailwind CSS 4 · Supab
 | Halaman | Fungsi |
 | --- | --- |
 | Dashboard | Tombol **Kirim sekarang** + jumlah prospek yang menunggu dikirim. Total prospek per bulan/tahun, per source (META/GOOGLE/TIKTOK), per wilayah, disubmit hari ini, entri terbaru. Semua dari Supabase. |
-| Tambah Prospek | Form input + klasifikasi wilayah otomatis + rekomendasi grup + pratinjau + cek nomor duplikat. Tombol *Submit Prospek*, *Submit & Prepare Handover*, *Reset Form*. |
+| Tambah Prospek | Dua tab. **Sales**: form prospek + klasifikasi wilayah otomatis + dealer otomatis + rekomendasi grup + pratinjau + cek nomor duplikat. **Service**: form entri service, tanpa pesan WhatsApp dan tanpa wilayah. |
+| Data Service | Daftar entri service: cari nama/location, filter bulan/dealer/source, edit, hapus, kirim ulang. |
 | Data Prospek | Cari nama/nomor, filter bulan/tanggal laporan/wilayah/dealer/source/status sinkron, edit, hapus (dengan konfirmasi), sinkron ulang, paginasi. |
 | Riwayat Handover | Status per grup: belum dikirim / pesan disalin / WhatsApp dibuka / ditandai terkirim (konfirmasi manual Anda). |
 | Master Cabang | Kelola dealer dan grup WhatsApp (nama, dealer, wilayah, link undangan resmi, aktif/nonaktif). |
@@ -29,7 +32,7 @@ Next.js 16 (App Router, server actions) · TypeScript · Tailwind CSS 4 · Supab
 
 ## Aturan bisnis penting
 
-**Tanggal laporan.** `report_date = tanggal prospek manual` bila diisi, selain itu `tanggal submit (Asia/Jakarta)`. Nilai ini dihitung oleh trigger database (`leads_before_write`) sehingga konsisten di semua jalur. `created_at` tidak pernah berubah saat edit. Tanggal follow up hanya mengisi kolom FOLLOW UP. Entri terlambat (mis. prospek 31 Oktober yang diinput 16 November) masuk ke tab **October 2026**.
+**Tanggal laporan.** `report_date = tanggal prospek manual` bila diisi, selain itu `tanggal submit (Asia/Jakarta)`. Nilai ini dihitung oleh trigger database (`leads_before_write`) sehingga konsisten di semua jalur. `created_at` tidak pernah berubah saat edit. Tanggal ini juga yang mengisi kolom FOLLOW UP di tabel wilayah; tidak ada isian follow up terpisah. Entri terlambat (mis. prospek 31 Oktober yang diinput 16 November) masuk ke tab **October 2026**.
 
 **Wilayah pelaporan** (5, tidak bisa diubah): JABODETABEK (DKI Jakarta, Bogor, Depok, Bekasi), JAWA BARAT (Jabar lainnya), BANTEN (termasuk Tangerang & Tangerang Selatan), JAWA TIMUR, SUMATERA & KALIMANTAN.
 
@@ -41,9 +44,11 @@ Urutan klasifikasi:
 
 Server memvalidasi ulang klasifikasi saat menyimpan (tanpa memanggil Gemini), sehingga status klasifikasi tidak bisa dipalsukan dari browser.
 
+**Dealer otomatis.** Setelah domisili dikenali, kolom Dealer terisi sendiri dan alasannya ditulis di bawah kolom. Tidak ada koordinat dealer, jadi "terdekat" dijawab dari data yang memang ada, berurutan: (1) dealer yang biasa menerima prospek dari domisili itu — ini keputusan rute Anda sendiri, jadi akurasinya naik seiring pemakaian; (2) dealer yang satu kota dengan domisili; (3) satu provinsi; (4) satu wilayah pelaporan. Bila beberapa dealer setara, dipilih yang paling sering dipakai. Pilihan ini selalu bisa diganti manual, dan bila tidak ada yang cocok kolomnya dibiarkan kosong.
+
 **Duplikat.** Setiap form punya `submission_id` unik (idempoten: klik ganda/kirim ulang tidak membuat dua prospek). Nomor telepon yang sudah ada memunculkan peringatan; Anda bisa memilih *Tetap simpan*.
 
-**WhatsApp.** Pesan mengikuti template yang ditentukan. Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
+**WhatsApp.** Pengiriman manual adalah jalur bawaan. Pesan memuat Source, Nama, Nomer WA, Tipe unit dan Domisili. Isian **Catatan Customer** (opsional) mengawali kalimat penutup, mis. *"Cust terakhir minta info angsuran untuk DP 50 juta, Mohon untuk segera di follow up ya, terimakasih"*; tanpa catatan, kalimat penutup berdiri sendiri. Catatan ini hanya muncul di pesan WhatsApp, tidak di spreadsheet (layout bulanan tidak berubah). Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
 
 ## Pengiriman ke Google Sheets
 
@@ -51,7 +56,9 @@ Alurnya **batch**: submit menumpuk, satu tombol mengirim semuanya.
 
 - Prospek **selalu disimpan ke Supabase lebih dulu**, lalu masuk antrean. Submit terasa cepat karena tidak menunggu Google.
 - Dashboard menampilkan jumlah yang menunggu beserta tab tujuannya. Tombol **Kirim sekarang** mengirim seluruh antrean, termasuk perubahan dari edit dan penghapusan.
-- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan). Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
+- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, SERVICE → GOOGLE/META, TOTAL dengan rumus `SUM` yang mencakup keduanya, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan).
+- Entri service dihitung di kolom SERVICE pada ringkasan harian itu, dan **hanya** bisa bersumber GOOGLE atau META — sesuai kolom yang tersedia, sehingga TOTAL harian selalu utuh.
+- Di sebelah kanannya, dipisah satu kolom kosong, ada blok **SERVICE** seperti di DDC Report: banner merah `SERVICE <BULAN> <TAHUN>` lalu NO | DEALER | NAMA | LOCATION | UNIT | FOLLOW UP | SOURCE | FINAL, minimal 30 baris bernomor. Entri service tidak masuk ringkasan harian maupun tabel wilayah. Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
 - Tab bulan yang belum ada dibuat otomatis (judul seperti `November 2026`, urut kronologis); tab yang sudah ada tidak pernah diduplikasi.
 - Pengiriman per bulan dilindungi **lock di database** + nomor revisi, sehingga pengiriman bersamaan tidak saling menimpa dengan data basi. Status per prospek ada di `spreadsheet_sync_logs` (pending / success / failed, `retry_count`, error).
 - Status *Tersinkron* hanya diberikan setelah Google Sheets mengonfirmasi penulisan. Bila gagal, antrean tetap utuh dan tinggal ditekan lagi.
@@ -65,11 +72,12 @@ Migrasi: `supabase/migrations/20261116000000_initial_schema.sql`.
 
 | Tabel | Isi |
 | --- | --- |
-| `leads` | Prospek. `report_date` dikelola trigger; `created_at` immutable; `submission_id` unik (idempoten). |
+| `service_entries` | Entri service: dealer, nama, location, unit, source, `final_note`, dan `report_date` yang dikelola trigger sama seperti lead. |
+| `leads` | Prospek. `report_date` dikelola trigger dan mengisi kolom FOLLOW UP; `created_at` immutable; `submission_id` unik (idempoten); `customer_note` opsional untuk pesan WhatsApp. |
 | `dealers` | Master dealer/cabang (nama unik, kota, provinsi, wilayah, aktif). |
 | `whatsapp_groups` | Grup tujuan (dealer, wilayah, link undangan resmi tervalidasi, aktif). |
 | `region_mappings` | Lokasi yang dipelajari (Gemini/manual) sebagai cache. |
-| `spreadsheet_sync_logs` | Status sinkron per prospek (`sync_status`, `error_message`, `retry_count`, `synced_at`). |
+| `spreadsheet_sync_logs` | Status sinkron per prospek **atau** per entri service (tepat satu dari `lead_id`/`service_id` terisi) (`sync_status`, `error_message`, `retry_count`, `synced_at`). |
 | `sheet_months` | Status per tab bulan (revisi, `sheet_id`, error terakhir, lock). |
 | `lead_handovers` | Grup tujuan per prospek + waktu disalin / dibuka / ditandai terkirim. |
 
@@ -80,7 +88,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, tempel isi `supabase/migrations/20261116000000_initial_schema.sql`, *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, `20261119000000_add_service_entries.sql`, `20261119120000_service_sources.sql`, lalu `20261119180000_whatsapp_autosend.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).
@@ -117,6 +125,7 @@ Salin `.env.example` ke `.env.local` (lokal) dan isi juga di Vercel:
 | `GOOGLE_PRIVATE_KEY` | ya* | private key service account — **server only** |
 | `GEMINI_API_KEY` | opsional | **server only** |
 | `GEMINI_MODEL` | opsional | nama model Gemini |
+| `WA_WORKER_SECRET` | opsional | ≥ 24 karakter acak. Mengaktifkan kirim otomatis lewat worker di luar Vercel; lihat `worker/README.md`. Kosongkan untuk tetap manual sepenuhnya. |
 | `CRON_SECRET` | opsional | ≥ 16 karakter acak. Mengaktifkan pengiriman cadangan harian lewat Vercel Cron. Bila kosong, `/api/cron/sync` mati dan pengiriman sepenuhnya manual. |
 
 \* Tanpa konfigurasi Google, prospek tetap tersimpan dan menunggu di antrean. Pengiriman akan menjelaskan variabel mana yang kurang, dan berhasil setelah konfigurasi lengkap.
@@ -186,5 +195,6 @@ src/
   lib/leads/ handover/ master/ whatsapp/   logika bisnis
 supabase/migrations/     skema database
 supabase/seed/           data master cabang & grup WhatsApp (sekali jalan)
+worker/                  pengirim WhatsApp opsional (jalan di luar Vercel)
 tests/                   unit & integrasi
 ```

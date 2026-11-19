@@ -182,7 +182,24 @@ export function HandoverPanel({ leadId, lead, message, handovers, groups }: Prop
   );
 }
 
-export function HandoverStatus({ h }: { h: Pick<HandoverRow, "sentMarkedAt" | "openedAt" | "copiedAt"> }) {
+export function HandoverStatus({
+  h,
+}: {
+  h: Pick<HandoverRow, "sentMarkedAt" | "openedAt" | "copiedAt" | "autoStatus" | "autoError" | "autoAttempts">;
+}) {
+  if (h.autoStatus === "failed") {
+    return (
+      <span className="text-xs text-red-700">
+        Kirim otomatis gagal ({h.autoAttempts}x){h.autoError ? `: ${h.autoError}` : ""}. Kirim manual di bawah.
+      </span>
+    );
+  }
+  if (h.autoStatus === "queued" || h.autoStatus === "sending") {
+    return <span className="text-xs text-amber-700">Menunggu worker WhatsApp mengirim…</span>;
+  }
+  if (h.autoStatus === "sent" && h.sentMarkedAt) {
+    return <span className="text-xs font-medium text-emerald-700">Terkirim otomatis · {formatTimestampId(h.sentMarkedAt)}</span>;
+  }
   if (h.sentMarkedAt)
     return <span className="text-xs font-medium text-emerald-700">Ditandai terkirim · {formatTimestampId(h.sentMarkedAt)}</span>;
   if (h.openedAt) return <span className="text-xs text-amber-700">WhatsApp dibuka {formatTimestampId(h.openedAt)} · belum dikonfirmasi</span>;

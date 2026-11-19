@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { syncDirtyMonths, syncMonth, type SyncDeps } from "@/lib/sync/service";
 import { createPgSyncStore, createTestDatabase, type TestDatabase } from "./pg";
-import { insertDealer, insertLead, monthRow, syncRow } from "./helpers";
+import { insertDealer, insertLead, insertService, monthRow, syncRow } from "./helpers";
 import { FakeSheets } from "../support/fake-sheets";
 
 let db: TestDatabase;
@@ -59,31 +59,53 @@ describe("daily summary and regional tables", () => {
   beforeEach(async () => {
     const jkt = await insertDealer(db.pool, "DIPO Jakarta", "JABODETABEK");
     await insertLead(db.pool, dealerId, { name: "Ani", leadDate: "2026-11-02", source: "GOOGLE", region: "JAWA BARAT", phone: "081200000001" });
-    await insertLead(db.pool, dealerId, { name: "Budi", leadDate: "2026-11-02", source: "META", region: "JAWA BARAT", followUp: "2026-11-20" });
+    await insertLead(db.pool, dealerId, { name: "Budi", leadDate: "2026-11-02", source: "META", region: "JAWA BARAT" });
     await insertLead(db.pool, jkt, { name: "Citra", leadDate: "2026-11-01", source: "TIKTOK", region: "JABODETABEK", domicile: "Bogor" });
     await insertLead(db.pool, jkt, { name: "Dodi", leadDate: "2026-11-30", source: "META", region: "SUMATERA & KALIMANTAN", domicile: "Medan" });
-    // Different month and follow-up-only date: must not appear in November.
-    await insertLead(db.pool, dealerId, { name: "Eko", leadDate: "2026-10-31", followUp: "2026-11-02", source: "GOOGLE" });
+    // Different month: must not appear in November.
+    await insertLead(db.pool, dealerId, { name: "Eko", leadDate: "2026-10-31", source: "GOOGLE" });
+    // Service entries feed the SERVICE half of the same daily summary.
+    await insertService(db.pool, jkt, { name: "Wandi", entryDate: "2026-11-02", source: "GOOGLE" });
+    await insertService(db.pool, jkt, { name: "Rina", entryDate: "2026-11-02", source: "META" });
+    await insertService(db.pool, jkt, { name: "Tono", entryDate: "2026-11-15", source: "GOOGLE" });
     await syncDirtyMonths(deps);
   });
 
-  it("counts prospects per report date and source with total formulas", async () => {
+  it("counts sales and service per report date, with a TOTAL spanning both", async () => {
     const grid = sheets.grid("November 2026");
-    expect(grid[0]!.slice(0, 6)).toEqual(["NO", "HARI/TANGGAL", "SALES", null, null, "TOTAL"]);
-    expect(grid[1]!.slice(2, 5)).toEqual(["GOOGLE", "META", "TIKTOK"]);
-    expect(grid[2]!.slice(0, 6)).toEqual([1, "Minggu, 1 November 2026", 0, 0, 1, "=SUM(C3:E3)"]);
-    expect(grid[3]!.slice(0, 6)).toEqual([2, "Senin, 2 November 2026", 1, 1, 0, "=SUM(C4:E4)"]);
-    expect(grid[31]!.slice(0, 5)).toEqual([30, "Senin, 30 November 2026", 0, 1, 0]);
-    expect(grid[32]!.slice(0, 6)).toEqual(["TOTAL", null, "=SUM(C3:C32)", "=SUM(D3:D32)", "=SUM(E3:E32)", "=SUM(F3:F32)"]);
+    expect(grid[0]!.slice(0, 8)).toEqual(["NO", "HARI/TANGGAL", "SALES", null, null, "SERVICE", null, "TOTAL"]);
+    expect(grid[1]!.slice(2, 8)).toEqual(["GOOGLE", "META", "TIKTOK", "GOOGLE", "META", null]);
+
+    // 1 Nov: one TIKTOK sales lead and nothing else.
+    expect(grid[2]!.slice(0, 8)).toEqual([1, "Minggu, 1 November 2026", 0, 0, 1, 0, 0, "=SUM(C3:G3)"]);
+    // 2 Nov: GOOGLE + META sales, and GOOGLE + META service.
+    expect(grid[3]!.slice(0, 8)).toEqual([2, "Senin, 2 November 2026", 1, 1, 0, 1, 1, "=SUM(C4:G4)"]);
+    // 15 Nov: service only.
+    expect(grid[16]!.slice(0, 8)).toEqual([15, "Minggu, 15 November 2026", 0, 0, 0, 1, 0, "=SUM(C17:G17)"]);
+    expect(grid[31]!.slice(0, 7)).toEqual([30, "Senin, 30 November 2026", 0, 1, 0, 0, 0]);
+
+    expect(grid[32]!.slice(0, 8)).toEqual([
+      "TOTAL", null,
+      "=SUM(C3:C32)", "=SUM(D3:D32)", "=SUM(E3:E32)", "=SUM(F3:F32)", "=SUM(G3:G32)", "=SUM(H3:H32)",
+    ]);
+
     const sum = (col: number) => grid.slice(2, 32).reduce((n, row) => n + Number(row[col]), 0);
-    expect([sum(2), sum(3), sum(4)]).toEqual([1, 2, 1]);
+    expect([sum(2), sum(3), sum(4)]).toEqual([1, 2, 1]); // sales GOOGLE / META / TIKTOK
+    expect([sum(5), sum(6)]).toEqual([2, 1]); // service GOOGLE / META
+  });
+
+  it("keeps a service entry out of the regional tables", async () => {
+    for (const region of ["JABODETABEK", "JAWA BARAT", "BANTEN", "JAWA TIMUR", "SUMATERA & KALIMANTAN"]) {
+      const names = sheets.regionRows("November 2026", region).map((r) => r[1]);
+      expect(names, region).not.toContain("Wandi");
+    }
   });
 
   it("puts each prospect in its region's table, oldest first, with the exact columns", async () => {
     const grid = sheets.grid("November 2026");
     const titles = grid.map((r) => r[0]).filter((v) => typeof v === "string" && /^[A-Z &]+$/.test(v) && !["NO", "TOTAL"].includes(v));
     expect(titles).toEqual(["JABODETABEK", "JAWA BARAT", "BANTEN", "JAWA TIMUR", "SUMATERA & KALIMANTAN"]);
-    const header = grid[grid.findIndex((r) => r[0] === "JABODETABEK") + 1];
+    const header = grid[grid.findIndex((r) => r[0] === "JABODETABEK") + 1]!.slice(0, 8);
     expect(header).toEqual(["NO", "NAMA", "NOMOR TLP", "LOCATION", "DEALER", "UNIT", "FOLLOW UP", "SOURCE"]);
 
     expect(sheets.regionRows("November 2026", "JAWA BARAT").map((r) => [r[0], r[1], r[2], r[7]])).toEqual([
@@ -91,7 +113,8 @@ describe("daily summary and regional tables", () => {
       [2, "Budi", "081234567890", "META"],
     ]);
     const budi = sheets.regionRows("November 2026", "JAWA BARAT")[1]!;
-    expect(budi[6]).toBe(46346); // 20 Nov 2026 as a Sheets serial date
+    // FOLLOW UP carries the prospect's own report date: 2 Nov 2026.
+    expect(budi[6]).toBe(46328);
     expect(sheets.regionRows("November 2026", "JABODETABEK").map((r) => [r[1], r[3], r[4]])).toEqual([["Citra", "Bogor", "DIPO Jakarta"]]);
     expect(sheets.regionRows("November 2026", "BANTEN")).toEqual([]);
     expect(sheets.regionRows("November 2026", "SUMATERA & KALIMANTAN").map((r) => r[1])).toEqual(["Dodi"]);

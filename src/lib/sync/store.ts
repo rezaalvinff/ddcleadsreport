@@ -1,7 +1,7 @@
-import { isReportingRegion, LEAD_SOURCES, type LeadSource } from "../constants";
+import { isReportingRegion, LEAD_SOURCES, SERVICE_SOURCES, type LeadSource, type ServiceSource } from "../constants";
 import { monthRange } from "../dates";
 import { dbError, type Db } from "../db/admin";
-import type { SheetLead } from "../sheets/layout";
+import type { SheetLead, SheetService } from "../sheets/layout";
 
 export interface MonthState {
   revision: number;
@@ -25,6 +25,7 @@ export interface SyncStore {
   getMonthState(monthKey: string): Promise<MonthState>;
   getOpenSyncRows(monthKey: string): Promise<OpenSyncRow[]>;
   loadMonthLeads(monthKey: string): Promise<SheetLead[]>;
+  loadMonthServices(monthKey: string): Promise<SheetService[]>;
   completeSync(monthKey: string, token: string, revision: number, sheetId: number, rows: OpenSyncRow[]): Promise<void>;
   failSync(monthKey: string, error: string): Promise<void>;
   findDirtyMonths(): Promise<string[]>;
@@ -36,7 +37,6 @@ export function toSheetLead(row: {
   phone: string;
   domicile: string;
   unit: string;
-  follow_up_date: string | null;
   source: string;
   report_date: string;
   created_at: string;
@@ -53,11 +53,39 @@ export function toSheetLead(row: {
     domicile: row.domicile,
     dealerName: row.dealer_name ?? "",
     unit: row.unit,
-    followUpDate: row.follow_up_date,
     source: row.source as LeadSource,
     reportDate: row.report_date,
     createdAt: row.created_at,
     region: row.reporting_region,
+  };
+}
+
+export function toSheetService(row: {
+  id: string;
+  name: string;
+  location: string;
+  unit: string;
+  source: string;
+  final_note: string | null;
+  report_date: string;
+  created_at: string;
+  dealer_name: string | null;
+}): SheetService {
+  // Service only ever comes from GOOGLE or META, which is what the daily
+  // summary has columns for; anything else would be silently uncounted.
+  if (!(SERVICE_SOURCES as readonly string[]).includes(row.source)) {
+    throw new Error(`Source "${row.source}" pada data service ${row.id} tidak didukung laporan service.`);
+  }
+  return {
+    id: row.id,
+    dealerName: row.dealer_name ?? "",
+    name: row.name,
+    location: row.location,
+    unit: row.unit,
+    source: row.source as ServiceSource,
+    finalNote: row.final_note,
+    reportDate: row.report_date,
+    createdAt: row.created_at,
   };
 }
 
@@ -98,7 +126,7 @@ export function createSupabaseSyncStore(db: Db): SyncStore {
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await db
           .from("leads")
-          .select("id, name, phone, domicile, unit, follow_up_date, source, report_date, created_at, reporting_region, dealer:dealers(dealer_name)")
+          .select("id, name, phone, domicile, unit, source, report_date, created_at, reporting_region, dealer:dealers(dealer_name)")
           .gte("report_date", start)
           .lte("report_date", end)
           .order("report_date")
@@ -109,6 +137,19 @@ export function createSupabaseSyncStore(db: Db): SyncStore {
         for (const row of data) leads.push(toSheetLead({ ...row, dealer_name: row.dealer?.dealer_name ?? null }));
         if (data.length < PAGE_SIZE) return leads;
       }
+    },
+    async loadMonthServices(monthKey) {
+      const { start, end } = monthRange(monthKey);
+      const { data, error } = await db
+        .from("service_entries")
+        .select("id, name, location, unit, source, final_note, report_date, created_at, dealer:dealers(dealer_name)")
+        .gte("report_date", start)
+        .lte("report_date", end)
+        .order("report_date")
+        .order("created_at")
+        .order("id");
+      if (error) throw dbError("Gagal membaca data service bulan ini", error);
+      return data.map((row) => toSheetService({ ...row, dealer_name: row.dealer?.dealer_name ?? null }));
     },
     async completeSync(monthKey, token, revision, sheetId, rows) {
       const { error } = await db.rpc("complete_sheet_sync", {

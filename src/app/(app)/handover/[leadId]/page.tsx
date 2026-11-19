@@ -23,7 +23,14 @@ export default async function HandoverPage({ params, searchParams }: { params: P
   const [lead, handovers, groups] = await Promise.all([getLead(db, leadId), listLeadHandovers(db, leadId), listGroups(db, { activeOnly: true })]);
   if (!lead) notFound();
 
-  const handoverLead = { name: lead.name, domicile: lead.domicile, unit: lead.unit, source: lead.source };
+  const handoverLead = {
+    name: lead.name,
+    phone: lead.phone,
+    domicile: lead.domicile,
+    unit: lead.unit,
+    source: lead.source,
+    customerNote: lead.customerNote,
+  };
   return (
     <>
       <PageHeader

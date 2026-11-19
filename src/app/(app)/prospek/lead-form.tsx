@@ -19,7 +19,7 @@ import type { DuplicateMatch } from "@/lib/leads/service";
 import { recommendGroups, type Dealer, type WhatsappGroup } from "@/lib/master/types";
 import { normalizePhone } from "@/lib/phone";
 import { buildHandoverMessage } from "@/lib/whatsapp/message";
-import { checkPhoneAction, classifyDomicileAction, saveLeadAction, type SaveLeadResponse } from "./actions";
+import { checkPhoneAction, classifyDomicileAction, saveLeadAction, type DomicileLookup, type SaveLeadResponse } from "./actions";
 
 export interface LeadFormValues {
   name: string;
@@ -29,9 +29,9 @@ export interface LeadFormValues {
   dealerId: string;
   unit: string;
   unitOther: string;
-  followUpDate: string;
   source: string;
   reportingRegion: string;
+  customerNote: string;
   groupIds: string[];
 }
 
@@ -43,16 +43,16 @@ const EMPTY: LeadFormValues = {
   dealerId: "",
   unit: "",
   unitOther: "",
-  followUpDate: "",
   source: "",
   reportingRegion: "",
+  customerNote: "",
   groupIds: [],
 };
 
 type ClassifyState =
   | { state: "idle" }
   | { state: "loading"; text: string }
-  | { state: "done"; text: string; result: Classification }
+  | { state: "done"; text: string; result: DomicileLookup }
   | { state: "error"; text: string; message: string };
 
 type Intent = "save" | "handover";
@@ -60,6 +60,8 @@ type Intent = "save" | "handover";
 interface Props {
   dealers: Dealer[];
   groups: WhatsappGroup[];
+  /** True when WA_WORKER_SECRET is set, so automatic sending can be offered. */
+  autoSendAvailable?: boolean;
   /** Present when editing an existing lead. */
   lead?: { id: string; values: LeadFormValues; createdAt: string; classification: string };
 }
@@ -77,7 +79,7 @@ function Field({ label, error, hint, children, required }: { label: string; erro
   );
 }
 
-export function LeadForm({ dealers, groups, lead }: Props) {
+export function LeadForm({ dealers, groups, lead, autoSendAvailable = false }: Props) {
   const router = useRouter();
   const isEdit = Boolean(lead);
   const [values, setValues] = useState<LeadFormValues>(lead?.values ?? EMPTY);
@@ -85,8 +87,10 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [classify, setClassify] = useState<ClassifyState>({ state: "idle" });
   const [regionTouched, setRegionTouched] = useState(isEdit);
+  const [dealerTouched, setDealerTouched] = useState(isEdit);
   const [groupsTouched, setGroupsTouched] = useState(isEdit);
   const [showAllGroups, setShowAllGroups] = useState(false);
+  const [autoSend, setAutoSend] = useState(autoSendAvailable);
   const [phoneMatches, setPhoneMatches] = useState<DuplicateMatch[]>([]);
   const [phoneCheckError, setPhoneCheckError] = useState<string | null>(null);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ intent: Intent; matches: DuplicateMatch[] } | null>(null);
@@ -110,7 +114,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
       setClassify({ state: "loading", text: domicile });
       try {
         const res = await classifyDomicileAction(domicile);
-        if (res.status === "error") setClassify({ state: "error", text: domicile, message: res.message });
+        if ("status" in res) setClassify({ state: "error", text: domicile, message: res.message });
         else setClassify({ state: "done", text: domicile, result: res });
       } catch {
         setClassify({ state: "error", text: domicile, message: "Klasifikasi gagal. Pilih wilayah secara manual." });
@@ -121,7 +125,8 @@ export function LeadForm({ dealers, groups, lead }: Props) {
 
   const settled = (classify.state === "done" || classify.state === "error") && classify.text === domicile;
   const classifying = domicile.length >= 2 && !domicileUnchanged && !settled;
-  const classification = classify.state === "done" && classify.text === domicile ? classify.result : null;
+  const lookup = classify.state === "done" && classify.text === domicile ? classify.result : null;
+  const classification = lookup?.classification ?? null;
   const panelState: ClassifyState = domicile.length < 2 ? { state: "idle" } : classify;
 
   // The region follows the classification until the user picks one manually.
@@ -133,11 +138,15 @@ export function LeadForm({ dealers, groups, lead }: Props) {
         ? classification.region
         : "";
 
+  // The dealer follows the domicile's suggestion until the user picks one.
+  const suggestion = lookup?.dealer ?? null;
+  const effectiveDealerId = dealerTouched ? values.dealerId : (suggestion?.dealerId ?? values.dealerId);
+
   // --- Group recommendations ----------------------------------------------
   const region = (effectiveRegion || null) as ReportingRegion | null;
   const { dealerGroups, regionGroups } = useMemo(
-    () => recommendGroups(groups, values.dealerId || null, region),
-    [groups, values.dealerId, region],
+    () => recommendGroups(groups, effectiveDealerId || null, region),
+    [groups, effectiveDealerId, region],
   );
   // Groups of the selected dealer are preselected until the user changes the selection.
   const selectedGroupIds = groupsTouched ? values.groupIds : dealerGroups.map((g) => g.id);
@@ -169,16 +178,18 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   };
 
   // --- Derived preview ------------------------------------------------------
-  const dealer = dealers.find((d) => d.id === values.dealerId);
+  const dealer = dealers.find((d) => d.id === effectiveDealerId);
   const unitLabel = values.unit === UNIT_OTHER ? values.unitOther.trim() : values.unit;
   const reportDate = values.leadDate || (lead ? jakartaDate(new Date(lead.createdAt)) : today);
   const reportTab = /^\d{4}-\d{2}-\d{2}$/.test(reportDate) ? sheetTitleForMonth(monthKeyOf(reportDate)) : "-";
   const selectedGroups = groups.filter((g) => selectedGroupIds.includes(g.id));
   const message = buildHandoverMessage({
     name: values.name.trim() || "[NAMA]",
+    phone: normalizePhone(values.phone) ?? (values.phone.trim() || "[NOMER WA]"),
     domicile: values.domicile.trim() || "[DOMISILI]",
     unit: unitLabel || "[UNIT]",
     source: values.source || "[SOURCE]",
+    customerNote: values.customerNote,
   });
   const regionIsManual =
     regionTouched && Boolean(effectiveRegion) && !(classification?.status === "resolved" && classification.region === effectiveRegion);
@@ -196,7 +207,15 @@ export function LeadForm({ dealers, groups, lead }: Props) {
     startTransition(async () => {
       try {
         const res = await saveLeadAction(
-          { ...values, reportingRegion: effectiveRegion, groupIds: selectedGroupIds, submissionId, confirmDuplicate },
+          {
+            ...values,
+            dealerId: effectiveDealerId,
+            reportingRegion: effectiveRegion,
+            groupIds: selectedGroupIds,
+            autoSend: autoSend && autoSendAvailable && selectedGroupIds.length > 0,
+            submissionId,
+            confirmDuplicate,
+          },
           lead?.id,
         );
         if (res.status === "invalid") {
@@ -228,6 +247,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
     setErrors({});
     setClassify({ state: "idle" });
     setRegionTouched(false);
+    setDealerTouched(false);
     setGroupsTouched(false);
     setPhoneMatches([]);
     setDuplicateConfirm(null);
@@ -255,6 +275,13 @@ export function LeadForm({ dealers, groups, lead }: Props) {
               Masuk antrean untuk tab <strong>{sheetTitleForMonth(result.month)}</strong>. Total{" "}
               <strong>{result.pending.total}</strong> prospek menunggu dikirim ke Google Sheets.
             </p>
+            {result.queuedSends !== null && (
+              <p className="mt-1">
+                {result.queuedSends > 0
+                  ? `${result.queuedSends} grup masuk antrean kirim otomatis. Status per grup ada di halaman handover.`
+                  : "Tidak ada grup yang diantrekan untuk kirim otomatis."}
+              </p>
+            )}
             {result.warnings.map((w) => (
               <p key={w} className="mt-1">
                 {w}
@@ -343,11 +370,12 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             />
           </div>
 
-          <Field label="Tanggal Prospek" error={errors.leadDate} hint={`Kosongkan untuk memakai tanggal submit (${formatDateShort(today)}). Menentukan tab laporan.`}>
+          <Field
+            label="Tanggal Prospek"
+            error={errors.leadDate}
+            hint={`Kosongkan untuk memakai tanggal submit (${formatDateShort(today)}). Menentukan tab laporan dan mengisi kolom FOLLOW UP di spreadsheet.`}
+          >
             <input type="date" className="input" value={values.leadDate} max={today} onChange={(e) => set("leadDate", e.target.value)} />
-          </Field>
-          <Field label="Follow Up" error={errors.followUpDate} hint="Hanya untuk kolom FOLLOW UP; tidak memengaruhi bulan laporan.">
-            <input type="date" className="input" value={values.followUpDate} onChange={(e) => set("followUpDate", e.target.value)} />
           </Field>
 
           <Field label="Dealer" required error={errors.dealerId}>
@@ -360,18 +388,34 @@ export function LeadForm({ dealers, groups, lead }: Props) {
                 .
               </p>
             ) : (
-              <select className={`input ${errors.dealerId ? "input-error" : ""}`} value={values.dealerId} onChange={(e) => set("dealerId", e.target.value)}>
-                <option value="">— Pilih dealer —</option>
-                {dealers
-                  .filter((d) => d.is_active || d.id === values.dealerId)
-                  .map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.dealer_name} ({d.reporting_region})
-                    </option>
-                  ))}
-              </select>
+              <>
+                <select
+                  className={`input ${errors.dealerId ? "input-error" : ""}`}
+                  value={effectiveDealerId}
+                  onChange={(e) => {
+                    setDealerTouched(true);
+                    set("dealerId", e.target.value);
+                  }}
+                >
+                  <option value="">— Pilih dealer —</option>
+                  {dealers
+                    .filter((d) => d.is_active || d.id === effectiveDealerId)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.dealer_name} ({d.reporting_region})
+                      </option>
+                    ))}
+                </select>
+                {!dealerTouched && suggestion && suggestion.dealerId === effectiveDealerId && (
+                  <p className="mt-1 text-xs text-brand-700">Dipilih otomatis. {suggestion.reason}</p>
+                )}
+                {dealerTouched && suggestion && suggestion.dealerId !== effectiveDealerId && (
+                  <p className="mt-1 text-xs text-neutral-500">Saran dari domisili: {suggestion.dealerName}.</p>
+                )}
+              </>
             )}
           </Field>
+
           <Field label="Source" required error={errors.source}>
             <div className="flex gap-2">
               {LEAD_SOURCES.map((s) => (
@@ -405,6 +449,22 @@ export function LeadForm({ dealers, groups, lead }: Props) {
           ) : (
             <div className="hidden sm:block" />
           )}
+
+          <div className="sm:col-span-2">
+            <Field
+              label="Catatan Customer"
+              error={errors.customerNote}
+              hint="Opsional. Ditambahkan di awal kalimat penutup pesan WhatsApp. Contoh: Cust terakhir minta info angsuran untuk DP 50 juta"
+            >
+              <textarea
+                className={`input ${errors.customerNote ? "input-error" : ""}`}
+                rows={2}
+                maxLength={500}
+                value={values.customerNote}
+                onChange={(e) => set("customerNote", e.target.value)}
+              />
+            </Field>
+          </div>
         </section>
 
         <section className="card p-5">
@@ -435,6 +495,24 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             </div>
           )}
         </section>
+
+        {autoSendAvailable && (
+          <label className="card flex cursor-pointer items-start gap-3 p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-brand-600"
+              checked={autoSend}
+              onChange={(e) => setAutoSend(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-neutral-900">Kirim otomatis ke grup terpilih</span>
+              <span className="mt-0.5 block text-xs text-neutral-500">
+                Pesan diantrekan untuk worker WhatsApp. Kalau worker sedang mati atau pengiriman gagal, statusnya terlihat di
+                halaman handover dan Anda tetap bisa mengirim manual.
+              </span>
+            </span>
+          </label>
+        )}
 
         {duplicateConfirm && (
           <Notice tone="warning">
@@ -490,7 +568,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             <PreviewRow label="Source" value={values.source} />
             <PreviewRow label="Tgl laporan" value={/^\d{4}-\d{2}-\d{2}$/.test(reportDate) ? `${formatDateShort(reportDate)}${values.leadDate ? "" : " (otomatis)"}` : ""} />
             <PreviewRow label="Tab Sheets" value={reportTab} />
-            <PreviewRow label="Follow up" value={values.followUpDate ? formatDateShort(values.followUpDate) : "—"} />
+            <PreviewRow label="Catatan" value={values.customerNote.trim()} />
             <PreviewRow label="Grup tujuan" value={selectedGroups.map((g) => g.group_name).join(", ") || "—"} />
           </dl>
         </div>

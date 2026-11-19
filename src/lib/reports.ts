@@ -36,30 +36,43 @@ export async function listSheetMonths(db: Db): Promise<SheetMonthStatus[]> {
   });
 }
 
-export interface OpenSyncLead {
-  leadId: string;
+export interface OpenSyncRow {
+  kind: "lead" | "service";
+  id: string;
   name: string;
   status: string;
   error: string | null;
   retryCount: number;
 }
 
-export async function listOpenSyncLeads(db: Db, monthKey: string): Promise<OpenSyncLead[]> {
+/** Leads and service entries of a month that are not on the sheet yet. */
+export async function listOpenSyncRows(db: Db, monthKey: string): Promise<OpenSyncRow[]> {
   const { data, error } = await db
     .from("spreadsheet_sync_logs")
-    .select("lead_id, sync_status, error_message, retry_count, lead:leads(name)")
+    .select("lead_id, service_id, sync_status, error_message, retry_count, lead:leads(name), service:service_entries(name)")
     .eq("spreadsheet_month", monthKey)
     .neq("sync_status", "success")
     .order("updated_at", { ascending: false })
     .limit(100);
   if (error) throw dbError("Gagal membaca status sinkronisasi", error);
-  return data.map((r) => ({
-    leadId: r.lead_id,
-    name: r.lead?.name ?? "-",
-    status: r.sync_status,
-    error: r.error_message,
-    retryCount: r.retry_count,
-  }));
+  return data.flatMap((r) => {
+    const target = r.lead_id
+      ? { kind: "lead" as const, id: r.lead_id, name: r.lead?.name }
+      : r.service_id
+        ? { kind: "service" as const, id: r.service_id, name: r.service?.name }
+        : null;
+    if (!target) return [];
+    return [
+      {
+        kind: target.kind,
+        id: target.id,
+        name: target.name ?? "-",
+        status: r.sync_status,
+        error: r.error_message,
+        retryCount: r.retry_count,
+      },
+    ];
+  });
 }
 
 export interface PendingSummary {
