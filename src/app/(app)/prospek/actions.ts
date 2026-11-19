@@ -16,6 +16,7 @@ import { suggestDealer, type DealerSuggestion } from "@/lib/master/suggest";
 import { createLead, deleteLead, findPhoneDuplicates, getLead, updateLead, type DuplicateMatch } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/phone";
 import { getPendingSummary, type PendingSummary } from "@/lib/reports";
+import { queueHandoverSends } from "@/lib/whatsapp/queue";
 import { appSyncDeps } from "@/lib/sync/app";
 import { syncMonths } from "@/lib/sync/service";
 
@@ -67,7 +68,16 @@ export async function checkPhoneAction(phone: string, excludeId?: string): Promi
 }
 
 export type SaveLeadResponse =
-  | { status: "saved"; leadId: string; replayed: boolean; month: string; pending: PendingSummary; warnings: string[] }
+  | {
+      status: "saved";
+      leadId: string;
+      replayed: boolean;
+      month: string;
+      pending: PendingSummary;
+      /** Number of groups queued for automatic sending, null when not requested. */
+      queuedSends: number | null;
+      warnings: string[];
+    }
   | { status: "duplicate_phone"; matches: DuplicateMatch[] }
   | { status: "invalid"; errors: FieldErrors }
   | { status: "error"; message: string };
@@ -93,6 +103,16 @@ export async function saveLeadAction(raw: unknown, leadId?: string): Promise<Sav
   if (result.kind === "duplicate_phone") return { status: "duplicate_phone", matches: result.matches };
   if (result.kind === "rejected") return { status: "invalid", errors: { [result.field]: result.message } };
 
+  const warnings = [...result.warnings];
+  let queuedSends: number | null = null;
+  if (parsed.data.autoSend && readEnv("waWorker").ok) {
+    try {
+      queuedSends = await queueHandoverSends(db, result.leadId);
+    } catch (error) {
+      warnings.push(`Prospek tersimpan, tetapi pengiriman WhatsApp gagal diantrekan: ${(error as Error).message}`);
+    }
+  }
+
   revalidatePath("/", "layout");
   return {
     status: "saved",
@@ -100,7 +120,8 @@ export async function saveLeadAction(raw: unknown, leadId?: string): Promise<Sav
     replayed: result.replayed,
     month: result.monthKeys.at(-1)!,
     pending: await getPendingSummary(db),
-    warnings: result.warnings,
+    queuedSends,
+    warnings,
   };
 }
 

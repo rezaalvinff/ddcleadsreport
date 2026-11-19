@@ -12,12 +12,15 @@ export interface HandoverRow {
   copiedAt: string | null;
   openedAt: string | null;
   sentMarkedAt: string | null;
+  autoStatus: "queued" | "sending" | "sent" | "failed" | null;
+  autoError: string | null;
+  autoAttempts: number;
   createdAt: string;
   lead: { name: string; domicile: string; unit: string; source: string; reportDate: string; dealerName: string } | null;
 }
 
 const HANDOVER_SELECT =
-  "id, lead_id, whatsapp_group_id, copied_at, opened_at, sent_marked_at, created_at, group:whatsapp_groups(group_name, group_link, reporting_region, dealer:dealers(dealer_name)), lead:leads(name, domicile, unit, source, report_date, dealer:dealers(dealer_name))";
+  "id, lead_id, whatsapp_group_id, copied_at, opened_at, sent_marked_at, auto_status, auto_error, auto_attempts, created_at, group:whatsapp_groups(group_name, group_link, reporting_region, dealer:dealers(dealer_name)), lead:leads(name, domicile, unit, source, report_date, dealer:dealers(dealer_name))";
 
 type Row = {
   id: string;
@@ -26,6 +29,9 @@ type Row = {
   copied_at: string | null;
   opened_at: string | null;
   sent_marked_at: string | null;
+  auto_status: string | null;
+  auto_error: string | null;
+  auto_attempts: number;
   created_at: string;
   group: { group_name: string; group_link: string | null; reporting_region: string; dealer: { dealer_name: string } | null } | null;
   lead: { name: string; domicile: string; unit: string; source: string; report_date: string; dealer: { dealer_name: string } | null } | null;
@@ -43,6 +49,9 @@ function toHandover(r: Row): HandoverRow {
     copiedAt: r.copied_at,
     openedAt: r.opened_at,
     sentMarkedAt: r.sent_marked_at,
+    autoStatus: (r.auto_status as HandoverRow["autoStatus"]) ?? null,
+    autoError: r.auto_error,
+    autoAttempts: r.auto_attempts,
     createdAt: r.created_at,
     lead: r.lead
       ? {

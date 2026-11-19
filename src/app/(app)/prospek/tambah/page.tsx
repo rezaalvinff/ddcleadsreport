@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getAdminDb } from "@/lib/db/admin";
+import { readEnv } from "@/lib/env";
 import { listDealers, listGroups } from "@/lib/master/service";
 import { param, type SearchParams } from "@/lib/search-params";
 import { LeadForm } from "../lead-form";
@@ -42,7 +43,7 @@ export default async function AddEntryPage({ searchParams }: { searchParams: Pro
         {tab("/prospek/tambah", "Sales", !isService, "Masuk tabel wilayah + pesan WhatsApp")}
         {tab("/prospek/tambah?jenis=service", "Service", isService, "Masuk blok SERVICE, tanpa pesan WhatsApp")}
       </div>
-      {isService ? <ServiceForm dealers={dealers} /> : <LeadForm dealers={dealers} groups={groups} />}
+      {isService ? <ServiceForm dealers={dealers} /> : <LeadForm dealers={dealers} groups={groups} autoSendAvailable={readEnv("waWorker").ok} />}
     </>
   );
 }

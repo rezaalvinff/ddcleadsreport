@@ -60,6 +60,8 @@ type Intent = "save" | "handover";
 interface Props {
   dealers: Dealer[];
   groups: WhatsappGroup[];
+  /** True when WA_WORKER_SECRET is set, so automatic sending can be offered. */
+  autoSendAvailable?: boolean;
   /** Present when editing an existing lead. */
   lead?: { id: string; values: LeadFormValues; createdAt: string; classification: string };
 }
@@ -77,7 +79,7 @@ function Field({ label, error, hint, children, required }: { label: string; erro
   );
 }
 
-export function LeadForm({ dealers, groups, lead }: Props) {
+export function LeadForm({ dealers, groups, lead, autoSendAvailable = false }: Props) {
   const router = useRouter();
   const isEdit = Boolean(lead);
   const [values, setValues] = useState<LeadFormValues>(lead?.values ?? EMPTY);
@@ -88,6 +90,7 @@ export function LeadForm({ dealers, groups, lead }: Props) {
   const [dealerTouched, setDealerTouched] = useState(isEdit);
   const [groupsTouched, setGroupsTouched] = useState(isEdit);
   const [showAllGroups, setShowAllGroups] = useState(false);
+  const [autoSend, setAutoSend] = useState(autoSendAvailable);
   const [phoneMatches, setPhoneMatches] = useState<DuplicateMatch[]>([]);
   const [phoneCheckError, setPhoneCheckError] = useState<string | null>(null);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ intent: Intent; matches: DuplicateMatch[] } | null>(null);
@@ -204,7 +207,15 @@ export function LeadForm({ dealers, groups, lead }: Props) {
     startTransition(async () => {
       try {
         const res = await saveLeadAction(
-          { ...values, dealerId: effectiveDealerId, reportingRegion: effectiveRegion, groupIds: selectedGroupIds, submissionId, confirmDuplicate },
+          {
+            ...values,
+            dealerId: effectiveDealerId,
+            reportingRegion: effectiveRegion,
+            groupIds: selectedGroupIds,
+            autoSend: autoSend && autoSendAvailable && selectedGroupIds.length > 0,
+            submissionId,
+            confirmDuplicate,
+          },
           lead?.id,
         );
         if (res.status === "invalid") {
@@ -264,6 +275,13 @@ export function LeadForm({ dealers, groups, lead }: Props) {
               Masuk antrean untuk tab <strong>{sheetTitleForMonth(result.month)}</strong>. Total{" "}
               <strong>{result.pending.total}</strong> prospek menunggu dikirim ke Google Sheets.
             </p>
+            {result.queuedSends !== null && (
+              <p className="mt-1">
+                {result.queuedSends > 0
+                  ? `${result.queuedSends} grup masuk antrean kirim otomatis. Status per grup ada di halaman handover.`
+                  : "Tidak ada grup yang diantrekan untuk kirim otomatis."}
+              </p>
+            )}
             {result.warnings.map((w) => (
               <p key={w} className="mt-1">
                 {w}
@@ -477,6 +495,24 @@ export function LeadForm({ dealers, groups, lead }: Props) {
             </div>
           )}
         </section>
+
+        {autoSendAvailable && (
+          <label className="card flex cursor-pointer items-start gap-3 p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-brand-600"
+              checked={autoSend}
+              onChange={(e) => setAutoSend(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-neutral-900">Kirim otomatis ke grup terpilih</span>
+              <span className="mt-0.5 block text-xs text-neutral-500">
+                Pesan diantrekan untuk worker WhatsApp. Kalau worker sedang mati atau pengiriman gagal, statusnya terlihat di
+                halaman handover dan Anda tetap bisa mengirim manual.
+              </span>
+            </span>
+          </label>
+        )}
 
         {duplicateConfirm && (
           <Notice tone="warning">

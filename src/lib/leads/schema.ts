@@ -47,6 +47,7 @@ export const leadInputSchema = z
     reportingRegion: z.enum(REPORTING_REGIONS, { error: "Pilih wilayah pelaporan." }),
     groupIds: z.array(z.uuid()).max(20).default([]).transform((ids) => [...new Set(ids)]),
     confirmDuplicate: z.boolean().default(false),
+    autoSend: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.unit === UNIT_OTHER && (!v.unitOther || v.unitOther.length < 2)) {

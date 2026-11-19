@@ -228,6 +228,11 @@ export type Database = {
           opened_at: string | null;
           sent_marked_at: string | null;
           created_at: string;
+          auto_status: string | null;
+          auto_error: string | null;
+          auto_attempts: number;
+          auto_queued_at: string | null;
+          auto_updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -238,6 +243,8 @@ export type Database = {
           copied_at?: string | null;
           opened_at?: string | null;
           sent_marked_at?: string | null;
+          auto_status?: string | null;
+          auto_queued_at?: string | null;
         };
         Relationships: [
           {
@@ -273,6 +280,23 @@ export type Database = {
       };
       fail_sheet_sync: {
         Args: { p_month: string; p_error: string };
+        Returns: undefined;
+      };
+      claim_whatsapp_sends: {
+        Args: { p_limit: number; p_stale_seconds: number };
+        Returns: {
+          handover_id: string;
+          group_name: string;
+          lead_name: string;
+          domicile: string;
+          unit: string;
+          source: string;
+          phone: string;
+          customer_note: string | null;
+        }[];
+      };
+      finish_whatsapp_send: {
+        Args: { p_handover: string; p_ok: boolean; p_error: string | null };
         Returns: undefined;
       };
     };

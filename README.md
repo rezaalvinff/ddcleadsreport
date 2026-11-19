@@ -9,7 +9,9 @@ Aplikasi web internal untuk mencatat prospek HOT Mitsubishi DIPO **sekali input*
 
 Prospek yang disubmit **ditumpuk dulu** sepanjang hari. Spreadsheet baru diperbarui ketika Anda menekan **Kirim sekarang** di Dashboard.
 
-Aplikasi ini tidak terhubung ke Qiscus dan tidak memakai otomasi WhatsApp tidak resmi (tanpa Baileys, whatsapp-web.js, WAHA, Evolution API, browser automation, dsb.). Nomor WhatsApp Business Anda tidak pernah disambungkan ke layanan apa pun.
+Aplikasi ini tidak terhubung ke Qiscus. Aplikasi di Vercel **tidak pernah** menghubungi WhatsApp: jalur bawaannya tetap manual (salin pesan, kirim sendiri).
+
+Tersedia worker opsional di `worker/` yang bisa mengirim otomatis memakai Baileys — pustaka **tidak resmi** yang melanggar Ketentuan Layanan WhatsApp dan berisiko membuat nomor diblokir. Worker itu berjalan di luar Vercel dan mati-hidup sepenuhnya atas kendali Anda; selama `WA_WORKER_SECRET` kosong, aplikasi berperilaku manual seperti semula. Baca `worker/README.md` sebelum memakainya.
 
 ## Teknologi
 
@@ -46,7 +48,7 @@ Server memvalidasi ulang klasifikasi saat menyimpan (tanpa memanggil Gemini), se
 
 **Duplikat.** Setiap form punya `submission_id` unik (idempoten: klik ganda/kirim ulang tidak membuat dua prospek). Nomor telepon yang sudah ada memunculkan peringatan; Anda bisa memilih *Tetap simpan*.
 
-**WhatsApp.** Pesan memuat Source, Nama, Nomer WA, Tipe unit dan Domisili. Isian **Catatan Customer** (opsional) mengawali kalimat penutup, mis. *"Cust terakhir minta info angsuran untuk DP 50 juta, Mohon untuk segera di follow up ya, terimakasih"*; tanpa catatan, kalimat penutup berdiri sendiri. Catatan ini hanya muncul di pesan WhatsApp, tidak di spreadsheet (layout bulanan tidak berubah). Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
+**WhatsApp.** Pengiriman manual adalah jalur bawaan. Pesan memuat Source, Nama, Nomer WA, Tipe unit dan Domisili. Isian **Catatan Customer** (opsional) mengawali kalimat penutup, mis. *"Cust terakhir minta info angsuran untuk DP 50 juta, Mohon untuk segera di follow up ya, terimakasih"*; tanpa catatan, kalimat penutup berdiri sendiri. Catatan ini hanya muncul di pesan WhatsApp, tidak di spreadsheet (layout bulanan tidak berubah). Tombol *Buka link grup* hanya muncul untuk link undangan resmi `https://chat.whatsapp.com/…`; tanpa link, aplikasi membuka WhatsApp Web dan Anda memilih grup manual. Aplikasi tidak pernah menyatakan pesan terkirim kecuali Anda menekan *Saya sudah mengirim*.
 
 ## Pengiriman ke Google Sheets
 
@@ -86,7 +88,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, `20261119000000_add_service_entries.sql`, lalu `20261119120000_service_sources.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, `20261119000000_add_service_entries.sql`, `20261119120000_service_sources.sql`, lalu `20261119180000_whatsapp_autosend.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).
@@ -123,6 +125,7 @@ Salin `.env.example` ke `.env.local` (lokal) dan isi juga di Vercel:
 | `GOOGLE_PRIVATE_KEY` | ya* | private key service account — **server only** |
 | `GEMINI_API_KEY` | opsional | **server only** |
 | `GEMINI_MODEL` | opsional | nama model Gemini |
+| `WA_WORKER_SECRET` | opsional | ≥ 24 karakter acak. Mengaktifkan kirim otomatis lewat worker di luar Vercel; lihat `worker/README.md`. Kosongkan untuk tetap manual sepenuhnya. |
 | `CRON_SECRET` | opsional | ≥ 16 karakter acak. Mengaktifkan pengiriman cadangan harian lewat Vercel Cron. Bila kosong, `/api/cron/sync` mati dan pengiriman sepenuhnya manual. |
 
 \* Tanpa konfigurasi Google, prospek tetap tersimpan dan menunggu di antrean. Pengiriman akan menjelaskan variabel mana yang kurang, dan berhasil setelah konfigurasi lengkap.
@@ -192,5 +195,6 @@ src/
   lib/leads/ handover/ master/ whatsapp/   logika bisnis
 supabase/migrations/     skema database
 supabase/seed/           data master cabang & grup WhatsApp (sekali jalan)
+worker/                  pengirim WhatsApp opsional (jalan di luar Vercel)
 tests/                   unit & integrasi
 ```

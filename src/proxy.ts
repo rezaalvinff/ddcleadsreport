@@ -40,8 +40,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the cron endpoint (which checks CRON_SECRET itself) and
-  // static assets: build output plus the public/ branding files, which carry no
+  // Everything except the cron and worker endpoints (which check their own
+  // shared secret) and static assets: build output plus public/ branding, which carry no
   // data and must load on the sign-in page itself.
-  matcher: ["/((?!_next/static|_next/image|api/cron|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff2?)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|api/cron|api/wa/|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff2?)$).*)"],
 };

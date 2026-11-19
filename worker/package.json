@@ -1,0 +1,15 @@
+{
+  "name": "ddc-whatsapp-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pulls queued handover messages from DDC Leads Report and sends them to WhatsApp groups.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node send-whatsapp.mjs"
+  },
+  "dependencies": {
+    "baileys": "6.7.24",
+    "qrcode-terminal": "0.12.0"
+  }
+}
