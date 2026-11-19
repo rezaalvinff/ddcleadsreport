@@ -6,7 +6,7 @@ import { REPORTING_REGIONS } from "@/lib/constants";
 import { formatTimestampId, monthLabelId, sheetTitleForMonth, shiftMonth, todayJakarta } from "@/lib/dates";
 import { getAdminDb } from "@/lib/db/admin";
 import { readEnv } from "@/lib/env";
-import { listOpenSyncLeads, listSheetMonths } from "@/lib/reports";
+import { listOpenSyncRows, listSheetMonths } from "@/lib/reports";
 import { monthParam, withParams, type SearchParams } from "@/lib/search-params";
 import { spreadsheetUrl } from "@/lib/sheets/gateway";
 import { buildMonthLayout, SUMMARY_SOURCES } from "@/lib/sheets/layout";
@@ -22,7 +22,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   const [months, leads, openLeads] = await Promise.all([
     listSheetMonths(db),
     createSupabaseSyncStore(db).loadMonthLeads(monthKey),
-    listOpenSyncLeads(db, monthKey),
+    listOpenSyncRows(db, monthKey),
   ]);
   const layout = buildMonthLayout(monthKey, leads);
   const status = months.find((m) => m.monthKey === monthKey);
@@ -159,10 +159,11 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                 <h3 className="mb-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Belum tersinkron</h3>
                 <ul className="space-y-1 text-sm">
                   {openLeads.map((l) => (
-                    <li key={l.leadId}>
-                      <Link className="link" href={`/prospek/${l.leadId}/edit`}>
+                    <li key={`${l.kind}-${l.id}`}>
+                      <Link className="link" href={l.kind === "lead" ? `/prospek/${l.id}/edit` : `/service/${l.id}/edit`}>
                         {l.name}
                       </Link>{" "}
+                      {l.kind === "service" && <span className="text-xs text-neutral-500">(service)</span>}{" "}
                       <span className={l.status === "failed" ? "text-red-700" : "text-amber-700"}>
                         {l.status === "failed" ? `gagal (${l.retryCount}x)` : "menunggu"}
                       </span>

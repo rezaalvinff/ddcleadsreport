@@ -101,10 +101,10 @@ export async function syncMonth(deps: SyncDeps, monthKey: string, opts: { force?
         return { monthKey, status: "success", sheetId: sheetId ?? month.sheetId };
       }
 
-      const leads = await store.loadMonthLeads(monthKey);
+      const [leads, services] = await Promise.all([store.loadMonthLeads(monthKey), store.loadMonthServices(monthKey)]);
       const sheets = deps.getSheets();
       const tab = await ensureMonthTab(sheets, monthKey);
-      await sheets.batchUpdate(buildSheetRequests(buildMonthLayout(monthKey, leads), tab.sheetId, tab));
+      await sheets.batchUpdate(buildSheetRequests(buildMonthLayout(monthKey, leads, services), tab.sheetId, tab));
       await store.completeSync(monthKey, token, month.revision, tab.sheetId, open);
       sheetId = tab.sheetId;
     }

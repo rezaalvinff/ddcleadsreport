@@ -83,7 +83,7 @@ describe("daily summary and regional tables", () => {
     const grid = sheets.grid("November 2026");
     const titles = grid.map((r) => r[0]).filter((v) => typeof v === "string" && /^[A-Z &]+$/.test(v) && !["NO", "TOTAL"].includes(v));
     expect(titles).toEqual(["JABODETABEK", "JAWA BARAT", "BANTEN", "JAWA TIMUR", "SUMATERA & KALIMANTAN"]);
-    const header = grid[grid.findIndex((r) => r[0] === "JABODETABEK") + 1];
+    const header = grid[grid.findIndex((r) => r[0] === "JABODETABEK") + 1]!.slice(0, 8);
     expect(header).toEqual(["NO", "NAMA", "NOMOR TLP", "LOCATION", "DEALER", "UNIT", "FOLLOW UP", "SOURCE"]);
 
     expect(sheets.regionRows("November 2026", "JAWA BARAT").map((r) => [r[0], r[1], r[2], r[7]])).toEqual([

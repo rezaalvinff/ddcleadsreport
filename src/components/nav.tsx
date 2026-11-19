@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/", label: "Dashboard" },
   { href: "/prospek/tambah", label: "Tambah Prospek" },
   { href: "/prospek", label: "Data Prospek" },
+  { href: "/service", label: "Data Service" },
   { href: "/handover", label: "Riwayat Handover" },
   { href: "/cabang", label: "Master Cabang" },
   { href: "/laporan", label: "Laporan Bulanan" },
@@ -16,6 +17,7 @@ const ITEMS = [
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   if (href === "/prospek") return pathname === "/prospek" || /^\/prospek\/[^/]+\/edit/.test(pathname);
+  if (href === "/prospek/tambah") return pathname === "/prospek/tambah";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

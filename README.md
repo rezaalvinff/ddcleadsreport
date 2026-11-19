@@ -20,7 +20,8 @@ Next.js 16 (App Router, server actions) · TypeScript · Tailwind CSS 4 · Supab
 | Halaman | Fungsi |
 | --- | --- |
 | Dashboard | Tombol **Kirim sekarang** + jumlah prospek yang menunggu dikirim. Total prospek per bulan/tahun, per source (META/GOOGLE/TIKTOK), per wilayah, disubmit hari ini, entri terbaru. Semua dari Supabase. |
-| Tambah Prospek | Form input + klasifikasi wilayah otomatis + rekomendasi grup + pratinjau + cek nomor duplikat. Tombol *Submit Prospek*, *Submit & Prepare Handover*, *Reset Form*. |
+| Tambah Prospek | Dua tab. **Sales**: form prospek + klasifikasi wilayah otomatis + dealer otomatis + rekomendasi grup + pratinjau + cek nomor duplikat. **Service**: form entri service, tanpa pesan WhatsApp dan tanpa wilayah. |
+| Data Service | Daftar entri service: cari nama/location, filter bulan/dealer/source, edit, hapus, kirim ulang. |
 | Data Prospek | Cari nama/nomor, filter bulan/tanggal laporan/wilayah/dealer/source/status sinkron, edit, hapus (dengan konfirmasi), sinkron ulang, paginasi. |
 | Riwayat Handover | Status per grup: belum dikirim / pesan disalin / WhatsApp dibuka / ditandai terkirim (konfirmasi manual Anda). |
 | Master Cabang | Kelola dealer dan grup WhatsApp (nama, dealer, wilayah, link undangan resmi, aktif/nonaktif). |
@@ -53,7 +54,8 @@ Alurnya **batch**: submit menumpuk, satu tombol mengirim semuanya.
 
 - Prospek **selalu disimpan ke Supabase lebih dulu**, lalu masuk antrean. Submit terasa cepat karena tidak menunggu Google.
 - Dashboard menampilkan jumlah yang menunggu beserta tab tujuannya. Tombol **Kirim sekarang** mengirim seluruh antrean, termasuk perubahan dari edit dan penghapusan.
-- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan). Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
+- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan).
+- Di sebelah kanannya, dipisah satu kolom kosong, ada blok **SERVICE** seperti di DDC Report: banner merah `SERVICE <BULAN> <TAHUN>` lalu NO | DEALER | NAMA | LOCATION | UNIT | FOLLOW UP | SOURCE | FINAL, minimal 30 baris bernomor. Entri service tidak masuk ringkasan harian maupun tabel wilayah. Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
 - Tab bulan yang belum ada dibuat otomatis (judul seperti `November 2026`, urut kronologis); tab yang sudah ada tidak pernah diduplikasi.
 - Pengiriman per bulan dilindungi **lock di database** + nomor revisi, sehingga pengiriman bersamaan tidak saling menimpa dengan data basi. Status per prospek ada di `spreadsheet_sync_logs` (pending / success / failed, `retry_count`, error).
 - Status *Tersinkron* hanya diberikan setelah Google Sheets mengonfirmasi penulisan. Bila gagal, antrean tetap utuh dan tinggal ditekan lagi.
@@ -67,11 +69,12 @@ Migrasi: `supabase/migrations/20261116000000_initial_schema.sql`.
 
 | Tabel | Isi |
 | --- | --- |
+| `service_entries` | Entri service: dealer, nama, location, unit, source, `final_note`, dan `report_date` yang dikelola trigger sama seperti lead. |
 | `leads` | Prospek. `report_date` dikelola trigger dan mengisi kolom FOLLOW UP; `created_at` immutable; `submission_id` unik (idempoten); `customer_note` opsional untuk pesan WhatsApp. |
 | `dealers` | Master dealer/cabang (nama unik, kota, provinsi, wilayah, aktif). |
 | `whatsapp_groups` | Grup tujuan (dealer, wilayah, link undangan resmi tervalidasi, aktif). |
 | `region_mappings` | Lokasi yang dipelajari (Gemini/manual) sebagai cache. |
-| `spreadsheet_sync_logs` | Status sinkron per prospek (`sync_status`, `error_message`, `retry_count`, `synced_at`). |
+| `spreadsheet_sync_logs` | Status sinkron per prospek **atau** per entri service (tepat satu dari `lead_id`/`service_id` terisi) (`sync_status`, `error_message`, `retry_count`, `synced_at`). |
 | `sheet_months` | Status per tab bulan (revisi, `sheet_id`, error terakhir, lock). |
 | `lead_handovers` | Grup tujuan per prospek + waktu disalin / dibuka / ditandai terkirim. |
 
@@ -82,7 +85,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, lalu `20261116160000_drop_follow_up_date.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, lalu `20261119000000_add_service_entries.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).

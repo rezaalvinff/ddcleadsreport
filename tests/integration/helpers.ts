@@ -53,3 +53,38 @@ export async function monthRow(pool: pg.Pool, monthKey: string) {
   const r = await pool.query("select * from public.sheet_months where month_key = $1", [monthKey]);
   return r.rows[0] as { revision: string; synced_revision: string; last_error: string | null; sheet_id: string | null } | undefined;
 }
+
+export interface ServiceFields {
+  name?: string;
+  location?: string;
+  unit?: string;
+  source?: string;
+  finalNote?: string | null;
+  entryDate?: string | null;
+  createdAt?: string;
+}
+
+export async function insertService(pool: pg.Pool, dealerId: string, f: ServiceFields = {}): Promise<{ id: string; report_date: string }> {
+  const r = await pool.query(
+    `insert into public.service_entries (submission_id, dealer_id, name, location, unit, source, final_note, entry_date, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9::timestamptz, now()))
+     returning id, to_char(report_date, 'YYYY-MM-DD') as report_date`,
+    [
+      randomUUID(),
+      dealerId,
+      f.name ?? "Dina Adrianti",
+      f.location ?? "Rawamangun",
+      f.unit ?? "Outlander",
+      f.source ?? "GOOGLE",
+      f.finalNote ?? null,
+      f.entryDate ?? null,
+      f.createdAt ?? null,
+    ],
+  );
+  return r.rows[0];
+}
+
+export async function serviceSyncRow(pool: pg.Pool, serviceId: string) {
+  const r = await pool.query("select * from public.spreadsheet_sync_logs where service_id = $1", [serviceId]);
+  return r.rows[0] as { sync_status: string; spreadsheet_month: string; retry_count: number; change_seq: string } | undefined;
+}

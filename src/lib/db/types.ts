@@ -130,6 +130,45 @@ export type Database = {
           },
         ];
       };
+      service_entries: {
+        Row: {
+          id: string;
+          submission_id: string;
+          dealer_id: string;
+          name: string;
+          location: string;
+          unit: string;
+          source: string;
+          final_note: string | null;
+          entry_date: string | null;
+          report_date: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          submission_id: string;
+          dealer_id: string;
+          name: string;
+          location: string;
+          unit: string;
+          source: string;
+          final_note?: string | null;
+          entry_date?: string | null;
+          /** Set by trigger; any value sent is overwritten. */
+          report_date?: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["service_entries"]["Insert"], "submission_id">>;
+        Relationships: [
+          {
+            foreignKeyName: "service_entries_dealer_id_fkey";
+            columns: ["dealer_id"];
+            isOneToOne: false;
+            referencedRelation: "dealers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sheet_months: {
         Row: {
           month_key: string;
@@ -150,7 +189,8 @@ export type Database = {
       spreadsheet_sync_logs: {
         Row: {
           id: string;
-          lead_id: string;
+          lead_id: string | null;
+          service_id: string | null;
           spreadsheet_month: string;
           sync_status: string;
           error_message: string | null;
@@ -168,6 +208,13 @@ export type Database = {
             columns: ["lead_id"];
             isOneToOne: true;
             referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "spreadsheet_sync_logs_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: true;
+            referencedRelation: "service_entries";
             referencedColumns: ["id"];
           },
         ];

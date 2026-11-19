@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { REPORTING_REGIONS } from "@/lib/constants";
-import { buildMonthLayout, buildSheetRequests, COLORS, REGION_TABLE_COLUMNS, type SheetLead } from "@/lib/sheets/layout";
+import {
+  buildMonthLayout,
+  buildSheetRequests,
+  COLORS,
+  REGION_TABLE_COLUMNS,
+  SERVICE_TABLE_COLUMNS,
+  type SheetLead,
+  type SheetService,
+} from "@/lib/sheets/layout";
 
 let n = 0;
 const lead = (over: Partial<SheetLead>): SheetLead => ({
@@ -75,7 +83,7 @@ describe("regional tables", () => {
     expect(layout.regions.map((r) => r.region)).toEqual([...REPORTING_REGIONS]);
     for (const section of layout.regions) {
       expect(value(layout, section.titleRow, 0)).toBe(section.region);
-      expect(layout.rows[section.headerRow]!.map((c) => c.value)).toEqual([...REGION_TABLE_COLUMNS]);
+      expect(layout.rows[section.headerRow]!.slice(0, 8).map((c) => c.value)).toEqual([...REGION_TABLE_COLUMNS]);
       expect(section.titleRow).toBeGreaterThan(layout.summary.totalRow);
     }
     expect(REGION_TABLE_COLUMNS).toEqual(["NO", "NAMA", "NOMOR TLP", "LOCATION", "DEALER", "UNIT", "FOLLOW UP", "SOURCE"]);
@@ -105,7 +113,7 @@ describe("regional tables", () => {
     expect(banten.leadIds).toEqual([]);
     expect(banten.dataRowCount).toBe(3);
     const write = buildSheetRequests(layout, 1, { rowCount: 100, columnCount: 8 }).find((r) => r.updateCells?.rows)!.updateCells!;
-    const blank = write.rows![banten.firstDataRow]!.values!;
+    const blank = write.rows![banten.firstDataRow]!.values!.slice(0, 8);
     expect(blank).toHaveLength(8);
     expect(blank.every((c) => c.userEnteredFormat?.borders?.top?.style === "SOLID" && !c.userEnteredValue)).toBe(true);
   });
@@ -130,7 +138,7 @@ describe("sheet requests", () => {
     expect(requests[0]!.updateSheetProperties!.properties!.gridProperties!.rowCount).toBeGreaterThanOrEqual(layout.rows.length);
     expect(requests[2]!.updateCells!.rows).toBeUndefined();
     expect(requests.filter((r) => r.mergeCells)).toHaveLength(layout.merges.length);
-    expect(requests.filter((r) => r.updateDimensionProperties)).toHaveLength(8);
+    expect(requests.filter((r) => r.updateDimensionProperties)).toHaveLength(17);
   });
 
   it("is deterministic, so re-syncing the same data produces the same sheet", () => {
@@ -138,5 +146,75 @@ describe("sheet requests", () => {
     expect(buildSheetRequests(buildMonthLayout("2026-11", data), 1, { rowCount: 500, columnCount: 8 })).toEqual(
       buildSheetRequests(buildMonthLayout("2026-11", [...data].reverse()), 1, { rowCount: 500, columnCount: 8 }),
     );
+  });
+});
+
+describe("service block", () => {
+  let n = 0;
+  const service = (over: Partial<SheetService>): SheetService => ({
+    id: `s-${++n}`,
+    dealerName: "DIPO GATSU",
+    name: "Dina Adrianti",
+    location: "Rawamangun",
+    unit: "Outlander",
+    source: "GOOGLE",
+    finalNote: null,
+    reportDate: "2026-11-03",
+    createdAt: "2026-11-03T03:00:00.000Z",
+    ...over,
+  });
+
+  it("sits to the right of the sales columns, behind one empty gutter column", () => {
+    const layout = buildMonthLayout("2026-11", [], [service({})]);
+    expect(layout.service.firstColumn).toBe(REGION_TABLE_COLUMNS.length + 1);
+    expect(layout.rows[0]).toHaveLength(REGION_TABLE_COLUMNS.length + 1 + SERVICE_TABLE_COLUMNS.length);
+    for (const row of layout.rows) expect(row[REGION_TABLE_COLUMNS.length]!.value).toBeNull();
+  });
+
+  it("has the DDC banner and column headers", () => {
+    const layout = buildMonthLayout("2026-11", [], []);
+    const c = layout.service.firstColumn;
+    expect(layout.rows[layout.service.bannerRow]![c]!.value).toBe("SERVICE NOVEMBER 2026");
+    expect(layout.rows[layout.service.headerRow]!.slice(c, c + 8).map((x) => x.value)).toEqual([...SERVICE_TABLE_COLUMNS]);
+    expect(layout.merges).toContainEqual({ row: 0, col: c, rowSpan: 1, colSpan: 8 });
+  });
+
+  it("fills FOLLOW UP with the entry's own report date and leaves FINAL empty when unset", () => {
+    const layout = buildMonthLayout("2026-11", [], [service({ reportDate: "2026-11-17", finalNote: null })]);
+    const c = layout.service.firstColumn;
+    const row = layout.rows[layout.service.firstDataRow]!;
+    expect(row[c + 5]!.value).toEqual({ date: "2026-11-17" });
+    expect(row[c + 7]!.value).toBeNull();
+  });
+
+  it("always offers at least 30 numbered rows and grows past them", () => {
+    expect(buildMonthLayout("2026-11", [], []).service.dataRowCount).toBe(30);
+    const many = Array.from({ length: 42 }, (_, i) => service({ id: `x${i}` }));
+    expect(buildMonthLayout("2026-11", [], many).service.dataRowCount).toBe(42);
+  });
+
+  it("sorts oldest first and lists each entry exactly once", () => {
+    const entries = [
+      service({ id: "late", reportDate: "2026-11-20" }),
+      service({ id: "early", reportDate: "2026-11-02" }),
+      service({ id: "mid", reportDate: "2026-11-09" }),
+    ];
+    expect(buildMonthLayout("2026-11", [], entries).service.serviceIds).toEqual(["early", "mid", "late"]);
+  });
+
+  it("paints the banner and headers red with white text", () => {
+    const layout = buildMonthLayout("2026-11", [], []);
+    const write = buildSheetRequests(layout, 1, { rowCount: 200, columnCount: 17 }).find((r) => r.updateCells?.rows)!.updateCells!;
+    const c = layout.service.firstColumn;
+    for (const rowIndex of [layout.service.bannerRow, layout.service.headerRow]) {
+      const cell = write.rows![rowIndex]!.values![c]!.userEnteredFormat!;
+      expect(cell.backgroundColor).toEqual(COLORS.red);
+      expect(cell.textFormat?.foregroundColor).toEqual(COLORS.white);
+      expect(cell.textFormat?.bold).toBe(true);
+    }
+  });
+
+  it("rejects an entry from another month", () => {
+    expect(() => buildMonthLayout("2026-11", [], [service({ reportDate: "2026-12-01" })])).toThrow();
   });
 });
