@@ -12,6 +12,23 @@ Worker ini memakai **Baileys**, pustaka tidak resmi yang menyamar sebagai WhatsA
 
 Kalau nomor yang dipakai adalah nomor WhatsApp Business utama, pertimbangkan memakai nomor terpisah lebih dulu.
 
+## Nomor mana yang dipakai
+
+Worker memakai nomor mana pun yang memindai QR — WhatsApp biasa maupun Business, keduanya punya fitur Perangkat Tertaut. Tidak ada pengaturan nomor di kode.
+
+Dua syarat yang harus dipenuhi nomor tersebut:
+
+1. **Sudah menjadi anggota grup tujuan.** Worker hanya bisa mengirim ke grup yang nomornya ikut di dalamnya.
+2. **Namanya jelas.** Orang cabang akan melihat pesan datang dari nomor ini, bukan dari nomor Anda yang biasa. Beri nama profil yang gamblang, misalnya "DDC Leads", supaya tidak dikira spam.
+
+Kalau bisa memilih, pakai nomor yang **sudah lama aktif dipakai normal**. Nomor yang baru dibuat lalu langsung mengirim pesan berpola justru lebih cepat dicurigai.
+
+**Ganti nomor** berarti menghapus sesi lama lalu memindai QR dengan nomor baru:
+
+```bash
+rm -rf worker/.wa-session
+```
+
 ## Kenapa tidak bisa di Vercel
 
 Koneksi WhatsApp harus tetap terbuka dan sesinya tersimpan di disk. Vercel menjalankan fungsi dalam hitungan detik lalu mematikannya, tanpa penyimpanan permanen, dan dari IP yang berganti-ganti. Worker ini **menarik** antrean dari aplikasi, jadi tidak butuh alamat publik maupun port terbuka — file yang sama berjalan di laptop maupun VPS.
