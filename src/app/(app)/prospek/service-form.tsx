@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Notice } from "@/components/ui";
-import { LEAD_SOURCES, UNIT_OPTIONS } from "@/lib/constants";
+import { SERVICE_SOURCES, UNIT_OPTIONS } from "@/lib/constants";
 import { formatDateShort, jakartaDate, monthKeyOf, sheetTitleForMonth, todayJakarta } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/leads/schema";
 import type { Dealer } from "@/lib/master/types";
@@ -205,7 +205,7 @@ export function ServiceForm({ dealers, entry }: Props) {
 
         <Field label="Source" required error={errors.source}>
           <div className="flex gap-2">
-            {LEAD_SOURCES.map((s) => (
+            {SERVICE_SOURCES.map((s) => (
               <label
                 key={s}
                 className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm ${

@@ -1,5 +1,5 @@
 import type { sheets_v4 } from "@googleapis/sheets";
-import { REPORTING_REGIONS, type LeadSource, type ReportingRegion } from "../constants";
+import { REPORTING_REGIONS, type LeadSource, type ReportingRegion, type ServiceSource } from "../constants";
 import { datesOfMonth, formatDayDateId, monthKeyOf, sheetTitleForMonth, toSheetsSerialDate, type IsoDate } from "../dates";
 
 /**
@@ -29,7 +29,7 @@ export interface SheetService {
   name: string;
   location: string;
   unit: string;
-  source: LeadSource;
+  source: ServiceSource;
   finalNote: string | null;
   reportDate: IsoDate;
   createdAt: string;
@@ -37,8 +37,10 @@ export interface SheetService {
 
 export const REGION_TABLE_COLUMNS = ["NO", "NAMA", "NOMOR TLP", "LOCATION", "DEALER", "UNIT", "FOLLOW UP", "SOURCE"] as const;
 export const SERVICE_TABLE_COLUMNS = ["NO", "DEALER", "NAMA", "LOCATION", "UNIT", "FOLLOW UP", "SOURCE", "FINAL"] as const;
-/** Order of the source columns in the daily summary, as in the reference sheet. */
+/** Order of the SALES source columns in the daily summary, as in the reference sheet. */
 export const SUMMARY_SOURCES = ["GOOGLE", "META", "TIKTOK"] as const satisfies readonly LeadSource[];
+/** Order of the SERVICE source columns beside them. */
+export const SUMMARY_SERVICE_SOURCES = ["GOOGLE", "META"] as const satisfies readonly ServiceSource[];
 
 export const COLORS = {
   yellow: { red: 1, green: 1, blue: 0 },
@@ -146,32 +148,46 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[], services:
   const merges: Merge[] = [];
   const sorted = sortLeadsForReport(leads);
 
-  // --- A. Daily source summary --------------------------------------------
+  // --- A. Daily summary: SALES and SERVICE side by side ---------------------
+  const salesFirstCol = 2;
+  const serviceFirstCol = salesFirstCol + SUMMARY_SOURCES.length;
+  const totalCol = serviceFirstCol + SUMMARY_SERVICE_SOURCES.length;
+
   const header = blankRow();
   const subHeader = blankRow();
   header[0] = { value: "NO", style: "headerYellow" };
   header[1] = { value: "HARI/TANGGAL", style: "headerYellow" };
-  header[2] = { value: "SALES", style: "headerGreen" };
-  header[3] = { value: null, style: "headerGreen" };
-  header[4] = { value: null, style: "headerGreen" };
-  header[5] = { value: "TOTAL", style: "headerYellow" };
+  header[salesFirstCol] = { value: "SALES", style: "headerGreen" };
+  header[serviceFirstCol] = { value: "SERVICE", style: "headerGreen" };
+  header[totalCol] = { value: "TOTAL", style: "headerYellow" };
+  for (let c = salesFirstCol + 1; c < serviceFirstCol; c++) header[c] = { value: null, style: "headerGreen" };
+  for (let c = serviceFirstCol + 1; c < totalCol; c++) header[c] = { value: null, style: "headerGreen" };
   subHeader[0] = { value: null, style: "headerYellow" };
   subHeader[1] = { value: null, style: "headerYellow" };
-  SUMMARY_SOURCES.forEach((source, i) => (subHeader[2 + i] = { value: source, style: "headerGreen" }));
-  subHeader[5] = { value: null, style: "headerYellow" };
+  SUMMARY_SOURCES.forEach((source, i) => (subHeader[salesFirstCol + i] = { value: source, style: "headerGreen" }));
+  SUMMARY_SERVICE_SOURCES.forEach((source, i) => (subHeader[serviceFirstCol + i] = { value: source, style: "headerGreen" }));
+  subHeader[totalCol] = { value: null, style: "headerYellow" };
   rows.push(header, subHeader);
   merges.push(
     { row: 0, col: 0, rowSpan: 2, colSpan: 1 },
     { row: 0, col: 1, rowSpan: 2, colSpan: 1 },
-    { row: 0, col: 2, rowSpan: 1, colSpan: 3 },
-    { row: 0, col: 5, rowSpan: 2, colSpan: 1 },
+    { row: 0, col: salesFirstCol, rowSpan: 1, colSpan: SUMMARY_SOURCES.length },
+    { row: 0, col: serviceFirstCol, rowSpan: 1, colSpan: SUMMARY_SERVICE_SOURCES.length },
+    { row: 0, col: totalCol, rowSpan: 2, colSpan: 1 },
   );
 
-  const counts = new Map<string, Record<LeadSource, number>>();
+  const salesCounts = new Map<string, Record<LeadSource, number>>();
   for (const lead of sorted) {
-    const day = counts.get(lead.reportDate) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const day = salesCounts.get(lead.reportDate) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
     day[lead.source] += 1;
-    counts.set(lead.reportDate, day);
+    salesCounts.set(lead.reportDate, day);
+  }
+  const sortedServices = sortServicesForReport(services);
+  const serviceCounts = new Map<string, Record<ServiceSource, number>>();
+  for (const entry of sortedServices) {
+    const day = serviceCounts.get(entry.reportDate) ?? { GOOGLE: 0, META: 0 };
+    day[entry.source] += 1;
+    serviceCounts.set(entry.reportDate, day);
   }
 
   const days = datesOfMonth(monthKey);
@@ -179,11 +195,14 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[], services:
   days.forEach((date, i) => {
     const row = blankRow();
     const r = a1Row(rows.length);
-    const day = counts.get(date) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const sales = salesCounts.get(date) ?? { GOOGLE: 0, META: 0, TIKTOK: 0 };
+    const service = serviceCounts.get(date) ?? { GOOGLE: 0, META: 0 };
     row[0] = { value: i + 1, style: "number" };
     row[1] = { value: formatDayDateId(date), style: "cell" };
-    SUMMARY_SOURCES.forEach((source, j) => (row[2 + j] = { value: day[source], style: "number" }));
-    row[5] = { value: { formula: `=SUM(C${r}:E${r})` }, style: "number" };
+    SUMMARY_SOURCES.forEach((source, j) => (row[salesFirstCol + j] = { value: sales[source], style: "number" }));
+    SUMMARY_SERVICE_SOURCES.forEach((source, j) => (row[serviceFirstCol + j] = { value: service[source], style: "number" }));
+    // TOTAL spans sales and service, as the TOTAL/day column does in DDC Report.
+    row[totalCol] = { value: { formula: `=SUM(${COL[salesFirstCol]}${r}:${COL[totalCol - 1]}${r})` }, style: "number" };
     rows.push(row);
   });
   const lastDayA1 = a1Row(rows.length - 1);
@@ -191,7 +210,7 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[], services:
   const totalRow = blankRow();
   totalRow[0] = { value: "TOTAL", style: "totalLabel" };
   totalRow[1] = { value: null, style: "totalLabel" };
-  for (let c = 2; c <= 5; c++) {
+  for (let c = salesFirstCol; c <= totalCol; c++) {
     totalRow[c] = { value: { formula: `=SUM(${COL[c]}${a1Row(firstDayRow)}:${COL[c]}${lastDayA1})` }, style: "totalNumber" };
   }
   rows.push(totalRow);
@@ -262,7 +281,6 @@ export function buildMonthLayout(monthKey: string, leads: SheetLead[], services:
     at(serviceHeaderRow)[col + i] = { value: name, style: "serviceHeader" };
   });
 
-  const sortedServices = sortServicesForReport(services);
   const firstServiceRow = serviceHeaderRow + 1;
   const serviceRowCount = Math.max(MIN_SERVICE_ROWS, sortedServices.length);
   for (let i = 0; i < serviceRowCount; i++) {

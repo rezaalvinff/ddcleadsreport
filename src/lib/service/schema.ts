@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LEAD_SOURCES } from "../constants";
+import { SERVICE_SOURCES } from "../constants";
 import { isValidIsoDate, todayJakarta } from "../dates";
 
 const text = (label: string, min: number, max: number) =>
@@ -15,7 +15,7 @@ export const serviceInputSchema = z.object({
   name: text("Nama", 2, 160),
   location: text("Location", 2, 160),
   unit: text("Unit", 2, 80),
-  source: z.enum(LEAD_SOURCES, { error: "Pilih source." }),
+  source: z.enum(SERVICE_SOURCES, { error: "Pilih source." }),
   entryDate: z
     .string()
     .trim()

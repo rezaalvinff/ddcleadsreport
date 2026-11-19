@@ -35,14 +35,17 @@ describe("daily source summary", () => {
     lead({ source: "TIKTOK", reportDate: "2026-11-15" }),
   ]);
 
-  it("has the NO / HARI/TANGGAL / SALES (GOOGLE, META, TIKTOK) / TOTAL header with merges", () => {
-    expect([value(layout, 0, 0), value(layout, 0, 1), value(layout, 0, 2), value(layout, 0, 5)]).toEqual(["NO", "HARI/TANGGAL", "SALES", "TOTAL"]);
-    expect([value(layout, 1, 2), value(layout, 1, 3), value(layout, 1, 4)]).toEqual(["GOOGLE", "META", "TIKTOK"]);
+  it("has NO / HARI/TANGGAL / SALES / SERVICE / TOTAL headers with merges", () => {
+    expect(layout.rows[0]!.slice(0, 8).map((c) => c.value)).toEqual([
+      "NO", "HARI/TANGGAL", "SALES", null, null, "SERVICE", null, "TOTAL",
+    ]);
+    expect(layout.rows[1]!.slice(2, 8).map((c) => c.value)).toEqual(["GOOGLE", "META", "TIKTOK", "GOOGLE", "META", null]);
     expect(layout.merges).toEqual(expect.arrayContaining([
       { row: 0, col: 0, rowSpan: 2, colSpan: 1 },
       { row: 0, col: 1, rowSpan: 2, colSpan: 1 },
       { row: 0, col: 2, rowSpan: 1, colSpan: 3 },
-      { row: 0, col: 5, rowSpan: 2, colSpan: 1 },
+      { row: 0, col: 5, rowSpan: 1, colSpan: 2 },
+      { row: 0, col: 7, rowSpan: 2, colSpan: 1 },
     ]));
   });
 
@@ -53,13 +56,15 @@ describe("daily source summary", () => {
     expect(day(3).slice(2, 5).map((c) => c.value)).toEqual([0, 0, 0]);
     expect(day(15).slice(2, 5).map((c) => c.value)).toEqual([0, 0, 1]);
     expect(day(30).slice(2, 5).map((c) => c.value)).toEqual([0, 1, 0]);
-    expect(day(30)[5]!.value).toEqual({ formula: "=SUM(C32:E32)" });
+    expect(day(30)[7]!.value).toEqual({ formula: "=SUM(C32:G32)" });
   });
 
   it("ends with a light-green TOTAL row summing every source and the grand total", () => {
     const total = layout.rows[layout.summary.totalRow]!;
-    expect(total.map((c) => c.value).slice(0, 6)).toEqual([
-      "TOTAL", null, { formula: "=SUM(C3:C32)" }, { formula: "=SUM(D3:D32)" }, { formula: "=SUM(E3:E32)" }, { formula: "=SUM(F3:F32)" },
+    expect(total.map((c) => c.value).slice(0, 8)).toEqual([
+      "TOTAL", null,
+      { formula: "=SUM(C3:C32)" }, { formula: "=SUM(D3:D32)" }, { formula: "=SUM(E3:E32)" },
+      { formula: "=SUM(F3:F32)" }, { formula: "=SUM(G3:G32)" }, { formula: "=SUM(H3:H32)" },
     ]);
     const requests = buildSheetRequests(layout, 7, { rowCount: 1000, columnCount: 26 });
     const write = requests.find((r) => r.updateCells?.rows)!.updateCells!;
@@ -216,5 +221,43 @@ describe("service block", () => {
 
   it("rejects an entry from another month", () => {
     expect(() => buildMonthLayout("2026-11", [], [service({ reportDate: "2026-12-01" })])).toThrow();
+  });
+});
+
+describe("service in the daily summary", () => {
+  const svc = (over: Partial<SheetService>): SheetService => ({
+    id: `sv-${Math.random()}`,
+    dealerName: "DIPO KRAKATAU MEDAN",
+    name: "Wandi",
+    location: "Medan",
+    unit: "Pajero Sport",
+    source: "GOOGLE",
+    finalNote: null,
+    reportDate: "2026-11-02",
+    createdAt: "2026-11-02T03:00:00.000Z",
+    ...over,
+  });
+
+  it("counts service per day in its own GOOGLE and META columns", () => {
+    const layout = buildMonthLayout("2026-11", [], [
+      svc({ source: "GOOGLE", reportDate: "2026-11-02" }),
+      svc({ source: "META", reportDate: "2026-11-02" }),
+      svc({ source: "GOOGLE", reportDate: "2026-11-05" }),
+    ]);
+    const day = (d: number) => layout.rows[layout.summary.firstDayRow + d - 1]!;
+    expect(day(2).slice(5, 7).map((c) => c.value)).toEqual([1, 1]);
+    expect(day(5).slice(5, 7).map((c) => c.value)).toEqual([1, 0]);
+    expect(day(3).slice(5, 7).map((c) => c.value)).toEqual([0, 0]);
+  });
+
+  it("leaves the sales columns alone", () => {
+    const layout = buildMonthLayout("2026-11", [], [svc({})]);
+    const day = layout.rows[layout.summary.firstDayRow + 1]!;
+    expect(day.slice(2, 5).map((c) => c.value)).toEqual([0, 0, 0]);
+  });
+
+  it("has a TOTAL that spans sales and service", () => {
+    const layout = buildMonthLayout("2026-11", [], []);
+    expect(layout.rows[layout.summary.firstDayRow]![7]!.value).toEqual({ formula: "=SUM(C3:G3)" });
   });
 });

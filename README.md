@@ -54,7 +54,8 @@ Alurnya **batch**: submit menumpuk, satu tombol mengirim semuanya.
 
 - Prospek **selalu disimpan ke Supabase lebih dulu**, lalu masuk antrean. Submit terasa cepat karena tidak menunggu Google.
 - Dashboard menampilkan jumlah yang menunggu beserta tab tujuannya. Tombol **Kirim sekarang** mengirim seluruh antrean, termasuk perubahan dari edit dan penghapusan.
-- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, TOTAL dengan rumus `SUM`, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan).
+- Tiap tab bulan dibangun ulang penuh dari database dalam **satu `batchUpdate` atomik**: ringkasan harian (NO, HARI/TANGGAL, SALES → GOOGLE/META/TIKTOK, SERVICE → GOOGLE/META, TOTAL dengan rumus `SUM` yang mencakup keduanya, baris TOTAL hijau muda) lalu lima tabel wilayah (NO | NAMA | NOMOR TLP | LOCATION | DEALER | UNIT | FOLLOW UP | SOURCE, header biru muda, border, urut tanggal laporan).
+- Entri service dihitung di kolom SERVICE pada ringkasan harian itu, dan **hanya** bisa bersumber GOOGLE atau META — sesuai kolom yang tersedia, sehingga TOTAL harian selalu utuh.
 - Di sebelah kanannya, dipisah satu kolom kosong, ada blok **SERVICE** seperti di DDC Report: banner merah `SERVICE <BULAN> <TAHUN>` lalu NO | DEALER | NAMA | LOCATION | UNIT | FOLLOW UP | SOURCE | FINAL, minimal 30 baris bernomor. Entri service tidak masuk ringkasan harian maupun tabel wilayah. Karena itu tidak mungkin ada baris ganda; edit, pindah bulan, dan hapus selalu tercermin, dan format template selalu dipasang ulang.
 - Tab bulan yang belum ada dibuat otomatis (judul seperti `November 2026`, urut kronologis); tab yang sudah ada tidak pernah diduplikasi.
 - Pengiriman per bulan dilindungi **lock di database** + nomor revisi, sehingga pengiriman bersamaan tidak saling menimpa dengan data basi. Status per prospek ada di `spreadsheet_sync_logs` (pending / success / failed, `retry_count`, error).
@@ -85,7 +86,7 @@ Keamanan: RLS aktif di semua tabel tanpa policy untuk `anon`/`authenticated`, da
 ### 1. Supabase
 
 1. Buat project di <https://supabase.com>.
-2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, lalu `20261119000000_add_service_entries.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
+2. Jalankan migrasi: buka **SQL Editor**, lalu jalankan setiap file di `supabase/migrations/` berurutan menurut nama — `20261116000000_initial_schema.sql`, `20261116120000_add_customer_note.sql`, `20261116160000_drop_follow_up_date.sql`, `20261119000000_add_service_entries.sql`, lalu `20261119120000_service_sources.sql` — masing-masing *Run*. (Atau dengan Supabase CLI: `supabase link --project-ref <ref>` lalu `supabase db push`.)
 3. (Opsional, hemat waktu) Isi master cabang sekaligus: tempel isi `supabase/seed/001_master_cabang.sql` di SQL Editor lalu *Run*. Berisi 34 dealer dan 37 grup WhatsApp DDC, semuanya aktif. Aman dijalankan ulang.
 4. **Authentication → Providers → Email**: aktif. **Authentication → Sign In / Providers**: matikan *Allow new users to sign up*.
 5. **Authentication → Users → Add user**: buat akun Anda (email + password, centang *Auto Confirm User*).

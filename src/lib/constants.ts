@@ -15,6 +15,10 @@ export function isReportingRegion(value: unknown): value is ReportingRegion {
 export const LEAD_SOURCES = ["META", "GOOGLE", "TIKTOK"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
+/** Service enquiries only ever come from these, as in DDC Report. */
+export const SERVICE_SOURCES = ["GOOGLE", "META"] as const;
+export type ServiceSource = (typeof SERVICE_SOURCES)[number];
+
 export const UNIT_OPTIONS = [
   "Xpander",
   "Xforce ICE",

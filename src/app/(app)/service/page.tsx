@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyRow, PageHeader, Pagination, SyncBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { LEAD_SOURCES } from "@/lib/constants";
+import { SERVICE_SOURCES } from "@/lib/constants";
 import { formatDateShort, formatTimestampId, monthLabelId, shiftMonth, todayJakarta } from "@/lib/dates";
 import { getAdminDb } from "@/lib/db/admin";
 import { listDealers } from "@/lib/master/service";
@@ -22,7 +22,7 @@ export default async function ServiceListPage({ searchParams }: { searchParams: 
   const filters = {
     q: param(sp, "q"),
     month: month && isValidMonthKey(month) ? month : undefined,
-    source: source && (LEAD_SOURCES as readonly string[]).includes(source) ? source : undefined,
+    source: source && (SERVICE_SOURCES as readonly string[]).includes(source) ? source : undefined,
     dealerId: dealer && /^[0-9a-f-]{36}$/i.test(dealer) ? dealer : undefined,
   };
   const page = pageParam(sp);
@@ -81,7 +81,7 @@ export default async function ServiceListPage({ searchParams }: { searchParams: 
           </label>
           <select id="source" name="source" defaultValue={filters.source ?? ""} className="input">
             <option value="">Semua source</option>
-            {LEAD_SOURCES.map((s) => (
+            {SERVICE_SOURCES.map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>

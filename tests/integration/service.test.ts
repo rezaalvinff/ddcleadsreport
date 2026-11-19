@@ -76,8 +76,17 @@ describe("service entries", () => {
     expect(await monthRow(db.pool, "2026-11")).toMatchObject({ revision: "2" });
   });
 
-  it("rejects an invalid source and a duplicate submission id", async () => {
-    await expect(insertService(db.pool, dealerId, { source: "FACEBOOK" })).rejects.toMatchObject({ code: "23514" });
+  it("accepts only GOOGLE and META, the two columns the summary has", async () => {
+    for (const source of ["GOOGLE", "META"]) {
+      await expect(insertService(db.pool, dealerId, { source })).resolves.toBeTruthy();
+    }
+    // TIKTOK has no column in the SERVICE half of the daily summary.
+    for (const source of ["TIKTOK", "FACEBOOK"]) {
+      await expect(insertService(db.pool, dealerId, { source }), source).rejects.toMatchObject({ code: "23514" });
+    }
+  });
+
+  it("rejects a duplicate submission id", async () => {
     const submission = randomUUID();
     const insert = () =>
       db.pool.query(

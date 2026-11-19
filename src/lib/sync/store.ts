@@ -1,4 +1,4 @@
-import { isReportingRegion, LEAD_SOURCES, type LeadSource } from "../constants";
+import { isReportingRegion, LEAD_SOURCES, SERVICE_SOURCES, type LeadSource, type ServiceSource } from "../constants";
 import { monthRange } from "../dates";
 import { dbError, type Db } from "../db/admin";
 import type { SheetLead, SheetService } from "../sheets/layout";
@@ -71,8 +71,10 @@ export function toSheetService(row: {
   created_at: string;
   dealer_name: string | null;
 }): SheetService {
-  if (!(LEAD_SOURCES as readonly string[]).includes(row.source)) {
-    throw new Error(`Data service ${row.id} tidak valid untuk laporan.`);
+  // Service only ever comes from GOOGLE or META, which is what the daily
+  // summary has columns for; anything else would be silently uncounted.
+  if (!(SERVICE_SOURCES as readonly string[]).includes(row.source)) {
+    throw new Error(`Source "${row.source}" pada data service ${row.id} tidak didukung laporan service.`);
   }
   return {
     id: row.id,
@@ -80,7 +82,7 @@ export function toSheetService(row: {
     name: row.name,
     location: row.location,
     unit: row.unit,
-    source: row.source as LeadSource,
+    source: row.source as ServiceSource,
     finalNote: row.final_note,
     reportDate: row.report_date,
     createdAt: row.created_at,
