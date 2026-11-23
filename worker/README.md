@@ -39,7 +39,7 @@ Koneksi WhatsApp harus tetap terbuka dan sesinya tersimpan di disk. Vercel menja
 - Komputer yang menyala selama Anda mau mengirim
 - HP dengan WhatsApp untuk memindai QR sekali
 
-## Menjalankan
+## Menjalankan pertama kali
 
 **1. Pasang dependensi** (sekali saja):
 
@@ -53,15 +53,35 @@ npm --prefix worker install
 openssl rand -hex 32
 ```
 
-**3. Jalankan worker** dengan secret yang sama:
+**3. Buat file pengaturan** dari contohnya:
 
 ```bash
-APP_URL=https://alamat-aplikasi-anda.vercel.app WA_WORKER_SECRET=secret-yang-sama npm --prefix worker start
+cp worker/.env.example worker/.env
 ```
 
-**4. Pindai QR** yang muncul di terminal: WhatsApp di HP → **Setelan → Perangkat tertaut → Tautkan perangkat**.
+Buka `worker/.env`, isi `APP_URL` dengan alamat aplikasi di Vercel dan `WA_WORKER_SECRET` dengan secret yang sama persis seperti di langkah 2.
 
-Setelah tersambung, worker menunggu antrean. Biarkan terminalnya terbuka.
+**4. Jalankan:**
+
+```bash
+npm --prefix worker start
+```
+
+**5. Pindai QR** yang muncul di terminal: WhatsApp di HP → **Setelan → Perangkat tertaut → Tautkan perangkat**.
+
+Setelah muncul "Tersambung ke WhatsApp", biarkan terminalnya terbuka.
+
+## Menyambung lagi nanti
+
+Sesi tersimpan di `worker/.wa-session/`, jadi cukup:
+
+```bash
+npm --prefix worker start
+```
+
+Biasanya langsung tersambung tanpa QR. Kalau QR muncul lagi, berarti sesinya sudah tidak berlaku — pindai ulang saja.
+
+Kalau terminalnya ditutup atau komputernya mati, pengiriman berhenti dan prospek menumpuk di antrean. Begitu worker dijalankan lagi, antrean itu dikirim menyusul.
 
 ## Memakainya
 
@@ -89,7 +109,7 @@ Status per grup terlihat di halaman handover prospek tersebut:
 
 ## Pindah ke VPS
 
-Salin folder `worker/` ke VPS, jalankan `npm install`, lalu jalankan dengan env yang sama. Scan QR sekali lagi di sana.
+Salin folder `worker/` ke VPS (tanpa `.wa-session/`), jalankan `npm install`, buat `.env` yang sama, lalu jalankan. Scan QR sekali lagi di sana.
 
 Supaya tetap hidup setelah SSH ditutup, pakai `pm2` atau systemd:
 
@@ -105,6 +125,6 @@ npx pm2 start worker/send-whatsapp.mjs --name ddc-wa
 rm -rf worker/.wa-session
 ```
 
-**Antrean tidak jalan** — cek log worker. `HTTP 401` berarti secret tidak cocok dengan yang di Vercel; `HTTP 503` berarti `WA_WORKER_SECRET` belum diisi di Vercel atau belum di-redeploy.
+**Antrean tidak jalan** — cek log worker. `HTTP 401` berarti secret di `worker/.env` tidak cocok dengan yang di Vercel; `HTTP 503` berarti `WA_WORKER_SECRET` belum diisi di Vercel atau belum di-redeploy.
 
 Folder `.wa-session/` berisi kredensial login WhatsApp Anda. Jangan di-commit dan jangan dibagikan; sudah masuk `.gitignore`.

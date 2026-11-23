@@ -17,11 +17,27 @@
  * This uses an unofficial library. WhatsApp does not permit it, and the number
  * can be banned. Read worker/README.md before pointing it at a real number.
  */
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "baileys";
 import qrcode from "qrcode-terminal";
+
+/**
+ * Reads worker/.env if it is there, so the worker can be started with a plain
+ * `npm start` instead of retyping the settings. Real environment variables win.
+ */
+function loadDotEnv(file) {
+  if (!existsSync(file)) return;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const value = match[2].trim().replace(/^(['"])(.*)\1$/, "$2");
+    if (process.env[match[1]] === undefined) process.env[match[1]] = value;
+  }
+}
+
+loadDotEnv(path.join(path.dirname(fileURLToPath(import.meta.url)), ".env"));
 
 const APP_URL = (process.env.APP_URL ?? "").replace(/\/+$/, "");
 const SECRET = process.env.WA_WORKER_SECRET ?? "";
@@ -32,7 +48,8 @@ const GAP_MS = Number(process.env.WA_GAP_SECONDS ?? 4) * 1000;
 const SESSION_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), ".wa-session");
 
 if (!APP_URL || !SECRET) {
-  console.error("APP_URL dan WA_WORKER_SECRET wajib diisi. Lihat worker/README.md.");
+  console.error("APP_URL dan WA_WORKER_SECRET belum diisi.");
+  console.error("Salin worker/.env.example jadi worker/.env lalu isi keduanya. Lihat worker/README.md.");
   process.exit(2);
 }
 
